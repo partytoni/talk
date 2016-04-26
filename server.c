@@ -13,6 +13,7 @@
 
 user_data_t users[MAX_USERS];
 sem_t sem;
+int kill_thread[MAX_USERS]={0};
 
 /* DICHIARAZIONI FUNZIONI */
 void do_message_action(int res, int socket, char* buff, char* nickname);
@@ -31,6 +32,8 @@ void gestione_interrupt() {
 }
 
 void* chat_routine(void* arg) {
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	chat_args* args=(chat_args*) arg;
 	if (LOG) printf("\n Creato thread chat_routine\n");
 	print_utenti(users, MAX_USERS);
@@ -52,6 +55,8 @@ void* chat_routine(void* arg) {
 		if (check_quit(msg)) {
 			if (LOG) printf("\nIl thread ha ricevuto #quit. Exit...\n");
 			close_connection(src);
+			kill_thread[src]=1;
+			kill_thread[dest]=1;
 			pthread_exit(EXIT_SUCCESS);
 		}
 	}
@@ -125,9 +130,21 @@ void* thread_connection(void* arg) {
 			res=pthread_create(&rcv,NULL,chat_routine,(void*)&arg_rcv);
 			PTHREAD_ERROR_HELPER(res,"\nimpossibile creare thread rcv");
 			if (LOG) printf("\nCreata chat_routine con src: %d e dest: %d\n",users[indice_altroutente].socket,socket);
-			pthread_join(send,NULL);
-			pthread_join(rcv,NULL);
+			/*pthread_join(send,NULL);
+			pthread_join(rcv,NULL);*/
+			while (1) {
+				if (kill_thread[socket] || kill_thread[users[indice_altroutente].socket]) {
+					if (LOG) printf("\nKILL_THREADDALI!!!!!\n");
+					pthread_cancel(send);
+					pthread_cancel(rcv);
+					break;
+				}
+				sleep(1);
+			}
 			if (LOG) printf("\nJoinati i thread in mode=1\n");
+			users[indice_altroutente].mode=NON_INIZIALIZZATO;
+			kill_thread[socket]=0;
+			kill_thread[indice_altroutente]=0;
     }
 
     /*---------------------/*
@@ -386,7 +403,6 @@ void close_connection(int socket) {
 	*(users[socket].valido)=!VALIDO;
 	if (LOG) printf("\nSe il numero [%d] corrisponde a 0 è stato eliminato correttamente.\n", *(users[socket].valido));
   //print_utenti(users, MAX_USERS);
-	sleep(1);
 	print_utenti(users, MAX_USERS);
 	close(socket);
 }

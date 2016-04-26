@@ -16,7 +16,7 @@ void do_message_action(int res, int socket, char* msg);
 void recv_SOS(int sock_src,char* buff);
 /*-----------------------*/
 
-int sock, join;
+int sock, kill_thread;
 
 void gestione_interrupt() {
 	printf("\nTerminazione richiesta. Chiusura delle connessioni attive...\n");
@@ -26,6 +26,8 @@ void gestione_interrupt() {
 }
 
 void* recv_routine(void* arg){
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	client_chat_arg* args=(client_chat_arg*)arg;
 	int socket=args->socket, res;
 	char* nickname=args->nickname;
@@ -40,9 +42,7 @@ void* recv_routine(void* arg){
 		}
 		if (check_quit(buff)) {
 			printf("\nIl client [%s] ha inviato #quit...Premi invio per tornare al menù principale\n", nickname);
-			//semaforo
-			join=1;
-			//semaforo
+			kill_thread=1;
 			pthread_exit(0);
 		}
 		printf("\n[%s]\t%s\n",nickname,buff );
@@ -50,6 +50,8 @@ void* recv_routine(void* arg){
 }
 
 void* send_routine(void* arg){
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	client_chat_arg* args=(client_chat_arg*)arg;
 	int socket=args->socket;
 	char* nickname=args->nickname;
@@ -58,16 +60,11 @@ void* send_routine(void* arg){
 	while(1){
 		memset(buff,0,MSG_SIZE);
 		fgets(buff,MSG_SIZE,stdin);
-		//semaforo
-		if (join) {
-			if (LOG) printf("\njoin=1\n");
-			pthread_exit(0);
-		}
-		//semaforo
 		if(strlen(buff)==1) continue;
 		send_msg(socket,buff);
 		if (check_quit(buff)) {
 			printf("\nHai inviato #quit. pthread_exit\n");
+			kill_thread=1;
 			pthread_exit(0);
 		}
 		printf("\n[%s]\t%s\n",nickname,buff );
@@ -183,8 +180,17 @@ int main(int argc, char* argv[]) {
 			PTHREAD_ERROR_HELPER(res,"spawning new send_routine thread!");
 			res=pthread_create(&rcv,NULL,recv_routine,(void*)&arg1);
 			PTHREAD_ERROR_HELPER(res,"spawning new recv_routine thread!");
-			pthread_join(rcv,NULL);
-			pthread_join(send,NULL);
+			/*pthread_join(rcv,NULL);
+			pthread_join(send,NULL);*/
+			while (1) {
+				if (kill_thread) {
+					if (LOG) printf("\nKILL_THREADDALI!!!!!\n");
+					pthread_cancel(send);
+					pthread_cancel(rcv);
+					break;
+				}
+				sleep(1);
+			}
 	  }
 
 
@@ -212,9 +218,19 @@ int main(int argc, char* argv[]) {
 			PTHREAD_ERROR_HELPER(res,"spawning new send_routine thread!");
 			res=pthread_create(&rcv,NULL,recv_routine,(void*)&arg1);
 			PTHREAD_ERROR_HELPER(res,"spawning new recv_routine thread!");
-			pthread_join(rcv,NULL);
-			pthread_join(send,NULL);
+			/*pthread_join(rcv,NULL);
+			pthread_join(send,NULL);*/
+			while (1) {
+				if (kill_thread) {
+					if (LOG) printf("\nKILL_THREADDALI!!!!!\n");
+					pthread_cancel(send);
+					pthread_cancel(rcv);
+					break;
+				}
+				sleep(1);
+			}
 	  }
+		kill_thread=0;
 	}
   close(sock);
   exit(EXIT_SUCCESS);
