@@ -199,7 +199,9 @@ int main(int argc, char* argv[]) {
 	  int accepted=0;
 	  while (mode==0 && accepted==0) {
 	    printf("\nSei in attesa di richiesta di chat\n");
-	    recv_msg(sock, buff, MSG_SIZE); //legge nome che vuole collegarsi con lui
+	    do{
+				res=recv_msg(sock, buff, MSG_SIZE); //legge nome che vuole collegarsi con lui
+			}while(res==0);
 			altronickname=char2str(buff);
 	    printf("\nVuoi collegarti con %s?\n", altronickname);
 	    do{
