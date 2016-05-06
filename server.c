@@ -35,7 +35,7 @@ void* chat_routine(void* arg) {
 	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	chat_args* args=(chat_args*) arg;
-	if (LOG) printf("\n Creato thread chat_routine\n");
+	if (LOG) printf("\n Creato thread chat_routine \n");
 	print_utenti(users, MAX_USERS);
 	int src=args->src;
 	int dest=args->dest;
@@ -54,7 +54,8 @@ void* chat_routine(void* arg) {
 		if(LOG) printf("\nthread con src %s e dest %s[%d] inviato: %s \n",users[src].nickname,users[dest].nickname,dest,msg);
 		if (check_quit(msg)) {
 			if (LOG) printf("\nIl thread ha ricevuto #quit. Exit...\n");
-			close_connection(src);
+			//close_connection(src);
+			//recv_msg(src, msg, MSG_SIZE);//USELESS	n
 			kill_thread[src]=1;
 			kill_thread[dest]=1;
 			pthread_exit(EXIT_SUCCESS);
@@ -104,8 +105,10 @@ void* thread_connection(void* arg) {
 	  send_msg(socket, "y");
 	  print_utenti(users, MAX_USERS);
 	}
-
+	count=0;
   while (1) {
+		sleep(0.6f);
+		//if (count==1) recv_msg(socket, msg, MSG_SIZE);
 		//-------------invio lista-------------
 		if (LOG) printf("\nInizio a spedire la lista\n");
 		invia_lista(socket, msg);
@@ -155,11 +158,11 @@ void* thread_connection(void* arg) {
 				if (LOG) printf("\nIl thread è stato terminato.\n");
 				pthread_exit(0);
 			}
-			sleep(1);
+			sleep(0.5f);
     } while (users[socket].mode==RICEVI_RICHIESTA);  //TODO da modificare
 
 		users[socket].disponibile=DISPONIBILE;
-
+		count++;
   }
 
 
@@ -309,7 +312,11 @@ void do_message_action(int res, int socket, char* msg, char* nickname) {
 void ricevi_modalita(int socket, char* msg, char* nickname, int* mode) {
   if (LOG) printf("\nRicezione modalità da parte di %s \n",nickname );
   //recv_msg(socket, msg, 1);
-  int res=recv_msg(socket, msg, MSG_SIZE);
+  int res;
+	do {
+		res=recv_msg(socket, msg, MSG_SIZE);
+	} while (res==0);
+	//if (LOG) printf("sono in ricevi modalità e il valore di msg è : %s cojo1\n",msg );
   if (check_quit(msg)) {
     close_connection(socket);
 		pthread_exit(0);
@@ -385,6 +392,7 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
 void invia_lista(int socket, char* msg) {
   int len=numero_disponibili(users, MAX_USERS), count=0;
   if (LOG) printf("\nLunghezza: %d\n", len );
+	print_utenti(users,MAX_USERS);
   memset(msg, 0, MSG_SIZE);
   sprintf(msg, "%d", len);
   send_msg(socket, msg); //invia lunghezza

@@ -62,6 +62,8 @@ void* send_routine(void* arg){
 		fgets(buff,MSG_SIZE,stdin);
 		if(strlen(buff)==1) continue;
 		send_msg(socket,buff);
+
+		if (LOG) printf("\n1namelo\n");
 		if (check_quit(buff)) {
 			printf("\nHai inviato #quit. pthread_exit\n");
 			kill_thread=1;
@@ -142,6 +144,7 @@ int main(int argc, char* argv[]) {
 	    if (strlen(buff)==2 && (check_buff(buff, '0') || check_buff(buff, '1') || check_buff(buff, '2'))) break;
 	  }
 	  send_msg(sock, buff); //invia modalita
+				if (LOG) printf("\ncojo2\n");
 	  if (check_buff(buff, '2')) {
 	    printf("\n Hai deciso di uscire. EXITING...\n");
 	    exit(0);
@@ -212,6 +215,7 @@ int main(int argc, char* argv[]) {
 	    } while(strlen(buff)==1 || (!check_buff(buff, 'y') && !check_buff(buff, 'n')));
 	    if (LOG) printf("\nInvio risposta: %c\n", buff[0]);
 	    send_msg(sock, buff);
+			if (LOG) printf("\n33 trentini \n");
 			if (check_buff(buff, 'n')) continue;
 			pthread_t send,rcv;
 			client_chat_arg arg1={sock,altronickname};
