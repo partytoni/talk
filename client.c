@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <semaphore.h>
 #include <signal.h>
 #include "util.c"
 
@@ -15,7 +16,7 @@ void ricevi_lista(int sock, char* buff);
 void do_message_action(int res, int socket, char* msg);
 void recv_SOS(int sock_src,char* buff);
 /*-----------------------*/
-
+sem_t kill_sem;
 int sock, kill_thread;
 
 void gestione_interrupt() {
@@ -42,7 +43,9 @@ void* recv_routine(void* arg){
 		}
 		if (check_quit(buff)) {
 			printf("\nIl client [%s] ha inviato #quit...Premi invio per tornare al menù principale\n", nickname);
+			sem_wait_EH(kill_sem,"recv_routine");
 			kill_thread=1;
+			sem_post_EH(kill_sem,"recv_routine");
 			pthread_exit(0);
 		}
 		printf("\n[%s]\t%s\n",nickname,buff );
@@ -62,11 +65,11 @@ void* send_routine(void* arg){
 		fgets(buff,MSG_SIZE,stdin);
 		if(strlen(buff)==1) continue;
 		send_msg(socket,buff);
-
-		if (LOG) printf("\n1namelo\n");
 		if (check_quit(buff)) {
 			printf("\nHai inviato #quit. pthread_exit\n");
+			sem_wait_EH(kill_sem,"send_routine");
 			kill_thread=1;
+			sem_post_EH(kill_sem,"send_routine");
 			pthread_exit(0);
 		}
 		printf("\n[%s]\t%s\n",nickname,buff );
@@ -133,6 +136,9 @@ int main(int argc, char* argv[]) {
     exit(1);
   }
 
+	res=sem_init(&kill_sem,0,VALORE_INIZIALE_SEMAFORO);
+	ERROR_HELPER(res,"cannot initializate semaphore");
+
 	while (1) {
 		if (LOG) printf("\n Inizio a ricevere la lista.\n");
 	  ricevi_lista(sock, buff);
@@ -144,7 +150,6 @@ int main(int argc, char* argv[]) {
 	    if (strlen(buff)==2 && (check_buff(buff, '0') || check_buff(buff, '1') || check_buff(buff, '2'))) break;
 	  }
 	  send_msg(sock, buff); //invia modalita
-				if (LOG) printf("\ncojo2\n");
 	  if (check_buff(buff, '2')) {
 	    printf("\n Hai deciso di uscire. EXITING...\n");
 	    exit(0);
@@ -186,12 +191,13 @@ int main(int argc, char* argv[]) {
 			/*pthread_join(rcv,NULL);
 			pthread_join(send,NULL);*/
 			while (1) {
+				sem_wait_EH(kill_sem,"main");
 				if (kill_thread) {
-					if (LOG) printf("\nKILL_THREADDALI!!!!!\n");
 					pthread_cancel(send);
 					pthread_cancel(rcv);
 					break;
 				}
+				sem_post_EH(kill_sem,"main");
 				sleep(1);
 			}
 	  }
@@ -215,7 +221,6 @@ int main(int argc, char* argv[]) {
 	    } while(strlen(buff)==1 || (!check_buff(buff, 'y') && !check_buff(buff, 'n')));
 	    if (LOG) printf("\nInvio risposta: %c\n", buff[0]);
 	    send_msg(sock, buff);
-			if (LOG) printf("\n33 trentini \n");
 			if (check_buff(buff, 'n')) continue;
 			pthread_t send,rcv;
 			client_chat_arg arg1={sock,altronickname};
@@ -227,16 +232,19 @@ int main(int argc, char* argv[]) {
 			/*pthread_join(rcv,NULL);
 			pthread_join(send,NULL);*/
 			while (1) {
+				sem_wait_EH(kill_sem,"main");
 				if (kill_thread) {
-					if (LOG) printf("\nKILL_THREADDALI!!!!!\n");
 					pthread_cancel(send);
 					pthread_cancel(rcv);
 					break;
 				}
+				sem_post_EH(kill_sem,"main");
 				sleep(1);
 			}
 	  }
+		sem_wait_EH(kill_sem,"main");
 		kill_thread=0;
+		sem_post_EH(kill_sem,"main");
 	}
   close(sock);
   exit(EXIT_SUCCESS);
@@ -288,12 +296,19 @@ void ricevi_lista(int sock, char* buff) {
   printf("\n---------------------------------------------\n");
 }
 
-void recv_SOS(int sock_src,char* buff){
-  recv_msg(sock_src,buff,MSG_SIZE);
-  int num_help=atoi(buff);
-  while(num_help>0){
-    recv_msg(sock_src,buff,MSG_SIZE);
-    printf("%s",buff);
-    num_help--;
-  }
+
+void sem_post_EH(sem_t sem, char* scope){
+	int ret;
+	ret=sem_post(&sem);
+	char msg[MSG_SIZE];
+	sprintf(msg,"cannot sem_post semaphore in %s\n",scope);
+	ERROR_HELPER(ret, msg);
+}
+
+void sem_wait_EH(sem_t sem, char* scope){
+	int ret;
+	ret=sem_wait(&sem);
+	char msg[MSG_SIZE];
+	sprintf(msg,"cannot sem_wait semaphore in %s\n",scope);
+	ERROR_HELPER(ret, msg);
 }

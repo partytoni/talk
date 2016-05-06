@@ -18,7 +18,6 @@
 #define DISPONIBILE 1
 #define MSG_SIZE 1024
 #define NICKNAME_SIZE 128
-#define MAX_CONN_QUEUE 3
 #define MAX_USERS 128
 
 #define NOT_A_COMMAND 0
@@ -44,41 +43,9 @@
 
 
 /* DICHIARAZIONI*/
-char* senzaslashenne(char* nome);
 char* char2str(char *word);
 int check_buff(char* buff, char ack);
 /*-------------*/
-
-
-/*
-*utilities di segnalazione dell'errore*****************************
-*/
-void util_err_msg(char* msg){
-    fprintf(stderr, "Error: %s\n", msg);
-}
-
-
-void util_panic(char* msg) {
-    util_err_msg(msg);
-    exit(1);
-}
-
-int util_check_err(int ret,char* msg_error,int error_flag){
-	if(ret==error_flag ){
-		fprintf(stderr, "Error occurred on %s\n", msg_error);
-    return NOK;
-	}
-  return OK;
-}
-
-void util_check_rw(int ret, int thread){
-  if (ret==-1) {
-    fprintf(stderr, "\n[ret==-1]\tError occurred on sending/receiving\n");
-	}
-	if(ret==0 ){
-		fprintf(stderr, "\n[ret==0]\tError occurred on sending/receiving\n");
-	}
-}
 
 void send_msg(int socket, const char *msg) {
     int ret;
@@ -181,6 +148,7 @@ typedef struct{
   char* nickname;
 }client_chat_arg;
 
+
 char* senzaslashenne(char* nome) {
 	int max=0,trovato=0;
   while (max<strlen(nome)) {
@@ -206,42 +174,29 @@ char* char2str(char *word){
   return w;
 }
 
+int check_command(char* command, char* buff) {
+  char* buffstr=senzaslashenne(char2str(buff));
+  if (strlen(buffstr)==strlen(command) && strcmp(buffstr, command)==0) return 1;
+  else return 0;
+}
 
 int check_quit(char* buff) {
-  char* buffstr=senzaslashenne(char2str(buff));
-  if (strlen(buffstr)==strlen("#quit") && strcmp(buffstr, "#quit")==0) return 1;
-  else return 0;
+  return check_command("#quit", buff);
 }
 
 int check_list(char* buff) {
-  char* buffstr=senzaslashenne(char2str(buff));
-  if (strlen(buffstr)==strlen("#list") && strcmp(buffstr, "#list")==0) return 1;
-  else return 0;
+  return check_command("#list", buff);
 }
 
 int check_help(char* buff) {
-  char* buffstr=senzaslashenne(char2str(buff));
-  if (strlen(buffstr)==strlen("#help") && strcmp(buffstr, "#help")==0) return 1;
-  else return 0;
+  return check_command("#help", buff);
 }
 
-
+int check_exit(char* buff) {
+  return check_command("#exit", buff);
+}
 
 int check_buff(char* buff, char ack) {
   if (buff[0]==ack) return 1;
   else return 0;
 }
-
-int check_duplicates(user_data_t users[], int dim, char* name) {
-  int i;
-  for (i=0;i<dim;i++) {
-    if (strlen(users[i].nickname)==strlen(name) && strcmp(users[i].nickname, name)==0) return OK;
-  }
-  return NOK;
-}
-
-
-/*
-int main(int argc, char* argv[]) {
-  printf("\n%d\n", message_action("#quit"));
-}*/
