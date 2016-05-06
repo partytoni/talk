@@ -306,16 +306,15 @@ int main(int argc, char* argv[]) {
 }
 
 void do_message_action(int res, int socket, char* msg, char* nickname) {
-  if (res==QUIT) {
+  if (res==QUIT || res==EXIT) {
 		int ret;
 		sem_wait_EH(users_sem,"do_message_action");
 		int i;
     printf("\nMessage action: Il client %s ha deciso di voler uscire. \n", nickname);
-		*(users[socket].valido)=!VALIDO;
 		printf("\nIl thread di %s sta per essere terminato poichè non più valido.\n", nickname);
     print_utenti(users, MAX_USERS);
 		sem_post_EH(users_sem,"do_message_action");
-		close(socket);
+		if (res==EXIT) close_connection(socket);
     pthread_exit(0);
   }
 
@@ -326,21 +325,16 @@ void do_message_action(int res, int socket, char* msg, char* nickname) {
 	if (res==HELP) {
 		//koffing
 	}
-	if (res==EXIT){
-
-	}
 }
 
 void ricevi_modalita(int socket, char* msg, char* nickname, int* mode) {
   //recv_msg(socket, msg, 1);
   int res;
-	do {
-		res=recv_msg(socket, msg, MSG_SIZE);
-	} while (res==0);
-  if (check_quit(msg)) {
-    close_connection(socket);
-		pthread_exit(0);
-  }
+	do{
+		res=recv_and_parse(socket, msg, MSG_SIZE);
+		if (res != NOT_A_COMMAND) do_message_action(res,socket,msg,nickname);
+	} while (res != NOT_A_COMMAND);
+
 	int i;
   *mode=atoi(msg);
   printf("\nLa modalità di %s è %d\n", nickname, *mode);
@@ -408,9 +402,10 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
 			close_connection(socket);
 		}
     printf("\nIn attesa di responso da parte di [%s]\n", altronickname);
-    do {
-      res=recv_msg(indice_altroutente, msg, MSG_SIZE);
-    } while (res==0);
+		do{
+			res=recv_and_parse(indice_altroutente, msg, MSG_SIZE);
+			if (res != NOT_A_COMMAND) do_message_action(res,indice_altroutente,msg,nickname);
+		} while (res != NOT_A_COMMAND);
     printf("\nIl client %s ha risposto %c", altronickname, msg[0]);
     res=send_msg(socket, msg); //invia responso
 		if (res == PIPE_ERROR ) {
