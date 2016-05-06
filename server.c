@@ -12,7 +12,7 @@
 #include "util.c"
 
 user_data_t users[MAX_USERS];
-sem_t sem;
+sem_t users_sem,kill_sem;
 int kill_thread[MAX_USERS]={0};
 
 /* DICHIARAZIONI FUNZIONI */
@@ -36,7 +36,9 @@ void* chat_routine(void* arg) {
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	chat_args* args=(chat_args*) arg;
 	if (LOG) printf("\n Creato thread chat_routine \n");
+	sem_wait_EH(users_sem,"chat_routine");
 	print_utenti(users, MAX_USERS);
+	sem_post_EH(users_sem,"chat_routine");
 	int src=args->src;
 	int dest=args->dest;
 	int res;
@@ -49,13 +51,9 @@ void* chat_routine(void* arg) {
 			printf("\nLa connessione verrà chiusa...\n");
 			pthread_exit(0);
 		}
-		if(LOG) printf("\nthread con src %s e dest %s[%d] ricevuto: %s \n",users[src].nickname,users[dest].nickname,dest,msg);
-		if (*(users[dest].valido)==VALIDO) send_msg(dest,msg);
-		if(LOG) printf("\nthread con src %s e dest %s[%d] inviato: %s \n",users[src].nickname,users[dest].nickname,dest,msg);
+		send_msg(dest,msg);
 		if (check_quit(msg)) {
 			if (LOG) printf("\nIl thread ha ricevuto #quit. Exit...\n");
-			//close_connection(src);
-			//recv_msg(src, msg, MSG_SIZE);//USELESS	n
 			kill_thread[src]=1;
 			kill_thread[dest]=1;
 			pthread_exit(EXIT_SUCCESS);
@@ -71,18 +69,20 @@ void* thread_connection(void* arg) {
   char msg[MSG_SIZE];
   char* nickname;
   if (LOG) printf("\nThread spawned. Socket_ds: %d\n", socket);
-  int res, i, count;
+  int res, i, count, ret;
   memset(msg, 0, MSG_SIZE);
   res=recv_msg(socket, msg, MSG_SIZE); //riceve nickname
 	nickname=char2str(msg);
   if (LOG) printf("\nIl nome del client è %s", nickname);
 	int duplicato=OK;
+	sem_wait_EH(users_sem,"thread_connection");
 	for (i=0;i<MAX_USERS;i++) {
 		if (*(users[i].valido)==VALIDO && strcmp(users[i].nickname, nickname)==0) {
 			duplicato=NOK;
 			printf("\nIl nome è già presente. Il thread e la connessione verranno chiusi.\nValido?[%d]\"%s\"==\"%s\"",*(users[i].valido),users[i].nickname,nickname );
 		}
 	}
+	sem_post_EH(users_sem,"thread_connection");
 	if (socket>MAX_USERS) {
     printf("\nNon ci sono posti disponibili. Il thread e la connessione verranno chiusi.\n");
     send_msg(socket, "n");
@@ -95,6 +95,7 @@ void* thread_connection(void* arg) {
     pthread_exit(0);
   }
   else {
+		sem_wait_EH(users_sem,"thread_connection");
 		users[socket].socket=socket;
 		users[socket].nickname=nickname;
 		*(users[socket].valido)=VALIDO;
@@ -104,8 +105,9 @@ void* thread_connection(void* arg) {
 		if (LOG) printf("\nusers[socket].socket: %d\n", users[socket].socket);
 	  send_msg(socket, "y");
 	  print_utenti(users, MAX_USERS);
+		sem_post_EH(users_sem,"thread_connection");
 	}
-	count=0;
+
   while (1) {
 		sleep(0.6f);
 		//if (count==1) recv_msg(socket, msg, MSG_SIZE);
@@ -124,19 +126,21 @@ void* thread_connection(void* arg) {
 
     if (mode==1) {
       int indice_altroutente=routine_inoltra_richiesta(socket, msg, nickname);
+			sem_wait_EH(users_sem,"thread_connection");
 			chat_args arg_send={socket,users[indice_altroutente].socket};
 			chat_args arg_rcv={users[indice_altroutente].socket, socket};
+			sem_post_EH(users_sem,"thread_connection");
 			pthread_t send,rcv;
 			res=pthread_create(&send,NULL,chat_routine,(void*)&arg_send);
 			PTHREAD_ERROR_HELPER(res,"\nimpossibile creare thread send");
-			if (LOG) printf("\nCreata chat_routine con src: %d e dest: %d\n",socket, users[indice_altroutente].socket);
+			if (LOG) printf("\nCreata chat_routine con src: %d e dest: %d\n",socket, indice_altroutente);
 			res=pthread_create(&rcv,NULL,chat_routine,(void*)&arg_rcv);
 			PTHREAD_ERROR_HELPER(res,"\nimpossibile creare thread rcv");
-			if (LOG) printf("\nCreata chat_routine con src: %d e dest: %d\n",users[indice_altroutente].socket,socket);
+			if (LOG) printf("\nCreata chat_routine con src: %d e dest: %d\n",indice_altroutente,socket);
 			/*pthread_join(send,NULL);
 			pthread_join(rcv,NULL);*/
 			while (1) {
-				if (kill_thread[socket] || kill_thread[users[indice_altroutente].socket]) {
+				if (kill_thread[socket] || kill_thread[indice_altroutente]) {
 					if (LOG) printf("\nKILL_THREADDALI!!!!!\n");
 					pthread_cancel(send);
 					pthread_cancel(rcv);
@@ -145,7 +149,9 @@ void* thread_connection(void* arg) {
 				sleep(1);
 			}
 			if (LOG) printf("\nJoinati i thread in mode=1\n");
+			sem_wait_EH(users_sem,"thread_connection");
 			users[indice_altroutente].mode=NON_INIZIALIZZATO;
+			sem_post_EH(users_sem,"thread_connection");
 			kill_thread[socket]=0;
 			kill_thread[indice_altroutente]=0;
     }
@@ -153,21 +159,27 @@ void* thread_connection(void* arg) {
     /*---------------------/*
     /*  MODALITA RECEIVE   /*
     /*---------------------*/
+		int flag;
     do {
+			sem_wait_EH(users_sem,"thread_connection");
 			if (*(users[socket].valido)==!VALIDO) {
 				if (LOG) printf("\nIl thread è stato terminato.\n");
 				pthread_exit(0);
 			}
+			flag=users[socket].mode;
+			sem_post_EH(users_sem,"thread_connection");
 			sleep(0.5f);
-    } while (users[socket].mode==RICEVI_RICHIESTA);  //TODO da modificare
-
+    } while (flag==RICEVI_RICHIESTA);  //TODO da modificare
+		sem_wait_EH(users_sem,"thread_connection");
 		users[socket].disponibile=DISPONIBILE;
-		count++;
+		sem_post_EH(users_sem,"thread_connection");
   }
 
 
   if (LOG) printf("\nShutting down thread...\n");
+	sem_wait_EH(users_sem,"thread_connection");
   *(users[socket].valido)=!VALIDO;
+	sem_post_EH(users_sem,"thread_connection");
 	if (LOG) printf("\nIl thread di %s sta per essere terminato poichè non più valido.\n\nSe il numero [%d] è 0 allora è stato eliminato correttamente.\n", nickname, *(users[socket].valido));
   print_utenti(users, MAX_USERS);
   close(socket);
@@ -272,6 +284,11 @@ int main(int argc, char* argv[]) {
     }
     port_number_no = htons((unsigned short)tmp);  //host to network short
 
+		ret=sem_init(&users_sem,0,1);
+		ERROR_HELPER(ret,"cannot initializate semaphore users_sem ");
+		ret=sem_init(&kill_sem,0,1);
+		ERROR_HELPER(ret,"cannot initializate semaphore kill_sem ");
+
     // inizia ad accettare connessioni in ingresso sulla porta data
     listen_on_port(port_number_no);
 
@@ -287,13 +304,16 @@ int main(int argc, char* argv[]) {
 
 void do_message_action(int res, int socket, char* msg, char* nickname) {
   if (res==QUIT) {
+		int ret;
+		sem_wait_EH(users_sem,"do_message_action");
 		int i;
     printf("\nMessage action: Il client %s ha deciso di voler uscire. \n", nickname);
 		*(users[socket].valido)=!VALIDO;
 		if (LOG) printf("\nIl thread di %s sta per essere terminato poichè non più valido.\n", nickname);
 		if (LOG) printf("\nSe il numero [%d] è 0 allora è stato eliminato correttamente.\n", *(users[socket].valido));
     print_utenti(users, MAX_USERS);
-    close(socket);
+		sem_post_EH(users_sem,"do_message_action");
+		close(socket);
     pthread_exit(0);
   }
 
@@ -328,18 +348,22 @@ void ricevi_modalita(int socket, char* msg, char* nickname, int* mode) {
     close_connection(socket);
 		pthread_exit(0);
   }
+	sem_wait_EH(users_sem,"ricevi_modalita");
 	users[socket].mode=(*mode);
 	if (LOG) printf("\nLa modalità di %s è stata cambiata: %d\n", nickname, users[socket].mode);
+	sem_post_EH(users_sem,"ricevi_modalita");
 }
 
 
 
 int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
 	int indice_altro, i;
+	sem_wait_EH(users_sem,"routine_inoltra_richiesta");
 	users[socket].disponibile=!DISPONIBILE;
 	if (LOG) printf("\nLa disponibilità di %s è stata cambiata: %d\t Corrisponde a 0?", nickname, users[socket].disponibile);
 	print_utenti(users, MAX_USERS);
-  int trovato=0, res, indice_altroutente=-1;
+	sem_post_EH(users_sem,"routine_inoltra_richiesta");
+	int trovato=0, res, indice_altroutente=-1;
   char* altronickname;
 	user_data_t altroutente;
 	altroutente.valido=(int*) malloc(sizeof(int));
@@ -358,12 +382,13 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
         send_msg(socket, "n");
         continue;
     }
-
+		sem_wait_EH(users_sem,"routine_inoltra_richiesta");
 		for (i=0;i<MAX_USERS;i++) {
 	    if (*(users[i].valido)==VALIDO && strlen(users[i].nickname)==strlen(altronickname) && strcmp(users[i].nickname, altronickname)==0) {
 				indice_altroutente=i;
 			}
 	  }
+		sem_post_EH(users_sem,"routine_inoltra_richiesta");
 
 		printf("\nindice_altroutente: %d\n", indice_altroutente);
 
@@ -376,15 +401,23 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
       printf("\nUtente trovato.\n");
       //send_msg(socket, "y");
     }
-    int altrosocket=users[indice_altroutente].socket;
-    send_msg(altrosocket, nickname);
+
+		send_msg(indice_altroutente, nickname);
     if (LOG) printf("\nIn attesa di responso da parte di [%s]\n", altronickname);
     do {
-      res=recv_msg(altrosocket, msg, MSG_SIZE);
+      res=recv_msg(indice_altroutente, msg, MSG_SIZE);
     } while (res==0);
     if (LOG) printf("\nIl client %s ha risposto %c", altronickname, msg[0]);
     send_msg(socket, msg); //invia responso
-		if (*(users[indice_altroutente].valido)==VALIDO && check_buff(msg, 'y')) break;
+		sem_wait_EH(users_sem,"routine_inoltra_richiesta");
+		int valid_flag=*(users[indice_altroutente].valido);
+		sem_post_EH(users_sem,"routine_inoltra_richiesta");
+		if(LOG) printf("\nvalid flag: %d == %d , msg= %s\n",valid_flag,VALIDO,msg);
+
+		if (valid_flag==VALIDO && check_buff(msg, 'y')) {
+			if(LOG) printf("\nsono nell'if ora break ahhhhhhhhhh\n" );
+			break;
+		}
 	}
 	return indice_altroutente;
 }
@@ -398,20 +431,23 @@ void invia_lista(int socket, char* msg) {
   send_msg(socket, msg); //invia lunghezza
 	int i;
   for (i=0;i<MAX_USERS;i++) {
+		sem_wait_EH(users_sem,"invia_lista");
     if (*(users[i].valido)==VALIDO && users[i].disponibile==DISPONIBILE) {
 			send_msg(socket, users[i].nickname);
 			if (LOG) printf("\nInviato %s\n", users[i].nickname);
 		}
+		sem_post_EH(users_sem,"invia_lista");
   }
 }
 
 void close_connection(int socket) {
   printf("\nIl client ha deciso di uscire. Shutting down thread...\n");
+	sem_wait_EH(users_sem,"close_connection");
   if (LOG) printf("\nL'utente %s non è più valido\n", users[socket].nickname);
 	*(users[socket].valido)=!VALIDO;
 	if (LOG) printf("\nSe il numero [%d] corrisponde a 0 è stato eliminato correttamente.\n", *(users[socket].valido));
-  //print_utenti(users, MAX_USERS);
-	print_utenti(users, MAX_USERS);
+  print_utenti(users, MAX_USERS);
+	sem_post_EH(users_sem,"close_connection");
 	close(socket);
 }
 
@@ -430,10 +466,27 @@ void print_utenti(user_data_t users[], int dim) {
 
 int numero_disponibili(user_data_t users[], int dim) {
   int count=0, i;
+	sem_wait_EH(users_sem,"numero_disponibili");
   for (i=0;i<dim;i++) {
     if (*(users[i].valido)==VALIDO && users[i].disponibile==DISPONIBILE) count++;
   }
+	sem_post_EH(users_sem,"numero_disponibili");
   return count;
+}
+
+void sem_post_EH(sem_t sem, char* scope){
+	int ret;
+	ret=sem_post(&users_sem);
+	char msg[MSG_SIZE];
+	sprintf(msg,"cannot sem_post users_sem in %s\n",scope);
+	ERROR_HELPER(ret, msg);
+}
+void sem_wait_EH(sem_t sem, char* scope){
+	int ret;
+	ret=sem_wait(&users_sem);
+	char msg[MSG_SIZE];
+	sprintf(msg,"cannot sem_wait users_sem in %s\n",scope);
+	ERROR_HELPER(ret, msg);
 }
 
 /*
