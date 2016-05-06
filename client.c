@@ -14,14 +14,13 @@
 /* DICHIARAZIONI FUNZIONI */
 void ricevi_lista(int sock, char* buff);
 void do_message_action(int res, int socket, char* msg);
-void recv_SOS(int sock_src,char* buff);
 /*-----------------------*/
 sem_t kill_sem;
 int sock, kill_thread;
 
 void gestione_interrupt() {
 	printf("\nTerminazione richiesta. Chiusura delle connessioni attive...\n");
-	send_msg(sock, "#quit");
+	send_msg(sock, "#exit");
 	close(sock);
 	exit(0);
 }
@@ -32,7 +31,6 @@ void* recv_routine(void* arg){
 	client_chat_arg* args=(client_chat_arg*)arg;
 	int socket=args->socket, res;
 	char* nickname=args->nickname;
-	if (LOG) printf("\n Creato thread recv_routine\n");
 	char buff[MSG_SIZE];
 	while(1){
 		res=recv_msg(socket,buff,MSG_SIZE);
@@ -41,13 +39,14 @@ void* recv_routine(void* arg){
 			printf("\nIl client %s ha terminato la connessione. EXITING...\n", nickname);
 			pthread_exit(0);
 		}
-		if (check_quit(buff)) {
-			printf("\nIl client [%s] ha inviato #quit...Premi invio per tornare al menù principale\n", nickname);
+		if (check_quit(buff) || check_exit(buff) ) {
+			printf("\nIl client [%s] è uscito dalla chat...\n", nickname);
 			sem_wait_EH(kill_sem,"recv_routine");
 			kill_thread=1;
 			sem_post_EH(kill_sem,"recv_routine");
 			pthread_exit(0);
 		}
+
 		printf("\n[%s]\t%s\n",nickname,buff );
 	}
 }
@@ -58,7 +57,6 @@ void* send_routine(void* arg){
 	client_chat_arg* args=(client_chat_arg*)arg;
 	int socket=args->socket;
 	char* nickname=args->nickname;
-	if (LOG) printf("\n Creato thread send_routine\n");
 	char buff[MSG_SIZE];
 	while(1){
 		memset(buff,0,MSG_SIZE);
@@ -164,7 +162,7 @@ int main(int argc, char* argv[]) {
 	  if (mode==1) { //mode==1
 	    int res;
 	    while (1) {
-	      printf("\nCon chi vuoi collegarti? #quit per uscire\n");
+	      printf("\nCon chi vuoi collegarti? #exit per uscire\n");
 	      memset(buff, 0, MSG_SIZE);
 	      fgets(buff, MSG_SIZE, stdin);
 	      if (strlen(buff)==1) sprintf(buff, "%s", nickname);
@@ -184,12 +182,11 @@ int main(int argc, char* argv[]) {
 			pthread_t send,rcv;
 			client_chat_arg arg1={sock,altronickname};
 			client_chat_arg arg2={sock,argv[6]};
+			printf("\nLa connessione con %s è stata abilitata.\n", altronickname);
 			res=pthread_create(&send,NULL,send_routine,(void*)&arg2);
 			PTHREAD_ERROR_HELPER(res,"spawning new send_routine thread!");
 			res=pthread_create(&rcv,NULL,recv_routine,(void*)&arg1);
 			PTHREAD_ERROR_HELPER(res,"spawning new recv_routine thread!");
-			/*pthread_join(rcv,NULL);
-			pthread_join(send,NULL);*/
 			while (1) {
 				sem_wait_EH(kill_sem,"main");
 				if (kill_thread) {
@@ -198,11 +195,9 @@ int main(int argc, char* argv[]) {
 					break;
 				}
 				sem_post_EH(kill_sem,"main");
-				sleep(1);
+				sleep(0.5f);
 			}
 	  }
-
-
 
 
 	  int accepted=0;
@@ -229,8 +224,7 @@ int main(int argc, char* argv[]) {
 			PTHREAD_ERROR_HELPER(res,"spawning new send_routine thread!");
 			res=pthread_create(&rcv,NULL,recv_routine,(void*)&arg1);
 			PTHREAD_ERROR_HELPER(res,"spawning new recv_routine thread!");
-			/*pthread_join(rcv,NULL);
-			pthread_join(send,NULL);*/
+
 			while (1) {
 				sem_wait_EH(kill_sem,"main");
 				if (kill_thread) {
@@ -239,7 +233,7 @@ int main(int argc, char* argv[]) {
 					break;
 				}
 				sem_post_EH(kill_sem,"main");
-				sleep(1);
+				sleep(0.5f);
 			}
 	  }
 		sem_wait_EH(kill_sem,"main");
@@ -251,28 +245,27 @@ int main(int argc, char* argv[]) {
 }
 
 void do_message_action(int res, int socket, char* msg) {
-  if (res==QUIT) {
-    printf("\nHai deciso di voler uscire. \n");
-    close(socket);
-    exit(0);
-  }
-
   if (res==LIST) {
     ricevi_lista(socket, msg);
   }
 
 	if (res==HELP) {
-		//recv_SOS(socket, msg);
 		char* welcome="\n\nHi welcome to talk application, type #command:";
-    char* quit="\n---- #quit to leave your awesome application";
+    char* quit="\n---- #quit to leave the current chat (if opened)";
     char* help="\n---- #help to ask an SOS";
-    char* list="\n---- #list to refresh user list\n";
-    char* SOS[]={welcome,quit,help,list};
+    char* list="\n---- #list to refresh user list";
+		char* _exit="\n---- #exit to leave your awesome application\n";
+    char* SOS[]={welcome,quit,help,list, _exit};
 		int i=0;
-    while(i<4){
+    while(i<5){
       if(LOG) printf("%s",SOS[i]);
       i++;
     }
+	}
+	if (res==EXIT){
+		printf("\nHai deciso di voler uscire. \n");
+    close(socket);
+    exit(0);
 	}
 }
 

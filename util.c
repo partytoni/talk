@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <fcntl.h>
 #include <errno.h>
 
@@ -19,11 +20,12 @@
 #define MSG_SIZE 1024
 #define NICKNAME_SIZE 128
 #define MAX_USERS 128
-
+#define PIPE_ERROR -1
 #define NOT_A_COMMAND 0
 #define QUIT 1
 #define LIST 2
 #define HELP 3
+#define EXIT 4
 
 #ifdef DEBUG
   #define LOG 1
@@ -47,20 +49,22 @@ char* char2str(char *word);
 int check_buff(char* buff, char ack);
 /*-------------*/
 
-void send_msg(int socket, const char *msg) {
+int send_msg(int socket, const char *msg) {
     int ret;
     char msg_to_send[MSG_SIZE];
     sprintf(msg_to_send, "%s\n", msg);
     int bytes_left = strlen(msg_to_send);
     int bytes_sent = 0;
     while (bytes_left > 0) {
-        ret = send(socket, msg_to_send + bytes_sent, bytes_left, 0);
+        ret = send(socket, msg_to_send + bytes_sent, bytes_left, MSG_NOSIGNAL);
         if (ret == -1 && errno == EINTR) continue;
+        if (ret == -1 && errno == EPIPE) return PIPE_ERROR;
         ERROR_HELPER(ret, "Errore nella scrittura su socket");
 
         bytes_left -= ret;
         bytes_sent += ret;
     }
+    return bytes_sent;
 }
 
 /*
@@ -72,7 +76,6 @@ void send_msg(int socket, const char *msg) {
  * letti ('\n' escluso), o -1 nel caso in cui il client ha chiuso la
  * connessione in modo inaspettato.
  */
-
 size_t recv_msg(int socket, char *buff, size_t buf_len) {
     int ret;
     int bytes_read = 0;
@@ -104,6 +107,7 @@ int message_action(char* buff) {
   if (check_quit(buff)) return QUIT;
   if (check_list(buff)) return LIST;
   if (check_help(buff)) return HELP;
+  if (check_exit(buff)) return EXIT;
 }
 
 int recv_and_parse(int socket, char* buff, size_t buff_len) {

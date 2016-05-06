@@ -46,13 +46,34 @@ void* chat_routine(void* arg) {
 		do {
 			res=recv_msg(src, msg, MSG_SIZE);
 		} while (res==0);
-		if (res==-1) {
-			printf("\nLa connessione verrà chiusa...\n");
-			pthread_exit(0);
+		if (res==-1) {	//il client ha chiuso la socket
+			res=send_msg(dest,"#quit");
+			if (res == PIPE_ERROR ) {
+				close_connection(dest);
+			}
+			close_connection(src);
+			sem_wait_EH(kill_sem, "chat_routine");
+			kill_thread[src]=1;
+			kill_thread[dest]=1;
+			sem_post_EH(kill_sem, "chat_routine");
+			pthread_exit(EXIT_SUCCESS);
 		}
-		send_msg(dest,msg);
-		if (check_quit(msg)) {
-			printf("\nIl thread ha ricevuto #quit. Exit...\n");
+		res=send_msg(dest,msg);
+		if (res==PIPE_ERROR){
+			close_connection(dest);
+			res=send_msg(src,"#quit");
+			if (res == PIPE_ERROR ) {
+				close_connection(src);
+			}
+			sem_wait_EH(kill_sem, "chat_routine");
+			kill_thread[src]=1;
+			kill_thread[dest]=1;
+			sem_post_EH(kill_sem, "chat_routine");
+			pthread_exit(EXIT_SUCCESS);
+		}
+		if (check_quit(msg) || check_exit(msg)) {
+			printf("\nIl thread ha ricevuto %s. %sing chat...\n", msg, msg);
+			if (check_exit(msg)) close_connection(src);
 			sem_wait_EH(kill_sem, "chat_routine");
 			kill_thread[src]=1;
 			kill_thread[dest]=1;
@@ -83,17 +104,12 @@ void* thread_connection(void* arg) {
 		}
 	}
 	sem_post_EH(users_sem,"thread_connection");
-	if (socket>MAX_USERS) {
-    printf("\nNon ci sono posti disponibili. Il thread e la connessione verranno chiusi.\n");
-    send_msg(socket, "n");
+	if (socket>MAX_USERS || duplicato==NOK) {
+    if (socket>MAX_USERS) printf("\nNon ci sono posti disponibili. Il thread e la connessione verranno chiusi.\n");
+    res=send_msg(socket, "n");
     close(socket);
     pthread_exit(0);
 	}
-  if (duplicato==NOK) {
-    send_msg(socket, "n");
-    close(socket);
-    pthread_exit(0);
-  }
   else {
 		sem_wait_EH(users_sem,"thread_connection");
 		users[socket].socket=socket;
@@ -101,14 +117,16 @@ void* thread_connection(void* arg) {
 		*(users[socket].valido)=VALIDO;
 		users[socket].mode=NON_INIZIALIZZATO;
 		users[socket].disponibile=DISPONIBILE;
-	  send_msg(socket, "y");
+	  res=send_msg(socket, "y");
+		if (res == PIPE_ERROR ) {
+			close_connection(socket);
+		}
 	  print_utenti(users, MAX_USERS);
 		sem_post_EH(users_sem,"thread_connection");
 	}
 
   while (1) {
 		sleep(0.6f);
-		//if (count==1) recv_msg(socket, msg, MSG_SIZE);
 		//-------------invio lista-------------
 		invia_lista(socket, msg);
 		//-------------------------------------
@@ -137,7 +155,7 @@ void* thread_connection(void* arg) {
 			pthread_join(rcv,NULL);*/
 			while (1) {
 				sem_wait_EH(kill_sem, "thread_connection");
-				if (kill_thread[socket] || kill_thread[indice_altroutente]) {
+				if (kill_thread[socket] && kill_thread[indice_altroutente]) {
 					pthread_cancel(send);
 					pthread_cancel(rcv);
 					break;
@@ -145,13 +163,17 @@ void* thread_connection(void* arg) {
 				sem_post_EH(kill_sem, "thread_connection");
 				sleep(1);
 			}
-			sem_wait_EH(users_sem,"thread_connection");
-			users[indice_altroutente].mode=NON_INIZIALIZZATO;
-			sem_post_EH(users_sem,"thread_connection");
 			sem_wait_EH(kill_sem, "thread_connection");
 			kill_thread[socket]=0;
 			kill_thread[indice_altroutente]=0;
 			sem_post_EH(kill_sem, "thread_connection");
+			sem_wait_EH(users_sem,"thread_connection");
+			users[indice_altroutente].mode=NON_INIZIALIZZATO;
+			int check_valid=users[socket].valido;
+			sem_post_EH(users_sem,"thread_connection");
+			if(!check_valid){
+				pthread_exit(EXIT_SUCCESS);
+			}
     }
 
     /*---------------------/*
@@ -302,7 +324,10 @@ void do_message_action(int res, int socket, char* msg, char* nickname) {
   }
 
 	if (res==HELP) {
-		//nothing
+		//koffing
+	}
+	if (res==EXIT){
+
 	}
 }
 
@@ -350,7 +375,10 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
     printf("\nIl client [%s] vuole collegarsi con [%s]", nickname, altronickname);
     if (strcmp(nickname, altronickname)==0) {
         printf("\nInviata stringa vuota o il nome di se stesso\n");
-        send_msg(socket, "n");
+        res=send_msg(socket, "n");
+				if (res == PIPE_ERROR ) {
+					close_connection(socket);
+				}
         continue;
     }
 		sem_wait_EH(users_sem,"routine_inoltra_richiesta");
@@ -365,21 +393,29 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
 
     if (indice_altroutente==-1) {
       printf("\nUtente non trovato.\n");
-      send_msg(socket, "n");
+      res=send_msg(socket, "n");
+			if (res == PIPE_ERROR ) {
+				close_connection(socket);
+			}
       continue;
     }
     else {
       printf("\nUtente trovato.\n");
-      //send_msg(socket, "y");
     }
 
-		send_msg(indice_altroutente, nickname);
+		res=send_msg(indice_altroutente, nickname);
+		if (res == PIPE_ERROR ) {
+			close_connection(socket);
+		}
     printf("\nIn attesa di responso da parte di [%s]\n", altronickname);
     do {
       res=recv_msg(indice_altroutente, msg, MSG_SIZE);
     } while (res==0);
     printf("\nIl client %s ha risposto %c", altronickname, msg[0]);
-    send_msg(socket, msg); //invia responso
+    res=send_msg(socket, msg); //invia responso
+		if (res == PIPE_ERROR ) {
+			close_connection(socket);
+		}
 		sem_wait_EH(users_sem,"routine_inoltra_richiesta");
 		int valid_flag=*(users[indice_altroutente].valido);
 		sem_post_EH(users_sem,"routine_inoltra_richiesta");
@@ -397,12 +433,18 @@ void invia_lista(int socket, char* msg) {
 	print_utenti(users,MAX_USERS);
   memset(msg, 0, MSG_SIZE);
   sprintf(msg, "%d", len);
-  send_msg(socket, msg); //invia lunghezza
+  int res=send_msg(socket, msg); //invia lunghezza
+	if (res == PIPE_ERROR ) {
+		close_connection(socket);
+	}
 	int i;
   for (i=0;i<MAX_USERS;i++) {
 		sem_wait_EH(users_sem,"invia_lista");
     if (*(users[i].valido)==VALIDO && users[i].disponibile==DISPONIBILE) {
-			send_msg(socket, users[i].nickname);
+			res=send_msg(socket, users[i].nickname);
+			if (res == PIPE_ERROR ) {
+				close_connection(socket);
+			}
 			printf("\nInviato %s\n", users[i].nickname);
 		}
 		sem_post_EH(users_sem,"invia_lista");
