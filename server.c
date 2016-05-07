@@ -9,11 +9,13 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <signal.h>
+#include <poll.h>
 #include "util.c"
 
 user_data_t users[MAX_USERS];
-sem_t users_sem,kill_sem;
+sem_t users_sem,kill_sem, receive_sem;
 int kill_thread[MAX_USERS]={0};
+int receive_flag[MAX_USERS]={0};
 
 /* DICHIARAZIONI FUNZIONI */
 void do_message_action(int res, int socket, char* buff, char* nickname);
@@ -140,6 +142,12 @@ void* thread_connection(void* arg) {
 
     if (mode==1) {
       int indice_altroutente=routine_inoltra_richiesta(socket, msg, nickname);
+			//sem_wait_EH
+			sem_wait_EH(receive_sem, "close_connection");
+			receive_flag[socket]=1;
+			receive_flag[indice_altroutente]=1;
+			sem_post_EH(receive_sem, "close_connection");
+			//sem_post_EH
 			sem_wait_EH(users_sem,"thread_connection");
 			chat_args arg_send={socket,users[indice_altroutente].socket};
 			chat_args arg_rcv={users[indice_altroutente].socket, socket};
@@ -158,6 +166,12 @@ void* thread_connection(void* arg) {
 				if (kill_thread[socket] && kill_thread[indice_altroutente]) {
 					pthread_cancel(send);
 					pthread_cancel(rcv);
+					//sem_wait_EH
+					sem_wait_EH(receive_sem, "close_connection");
+					receive_flag[socket]=0;
+					receive_flag[indice_altroutente]=0;
+					sem_post_EH(receive_sem, "close_connection");
+					//sem_post_EH
 					break;
 				}
 				sem_post_EH(kill_sem, "thread_connection");
@@ -188,7 +202,35 @@ void* thread_connection(void* arg) {
 			}
 			flag=users[socket].mode;
 			sem_post_EH(users_sem,"thread_connection");
-			sleep(0.5f);
+			struct pollfd fd;
+			int pollret;
+
+			fd.fd = socket; // your socket handler
+			fd.events = POLLIN;
+			pollret = poll(&fd, 1, 100); // 1 second for timeout
+
+			switch (pollret) {
+			  case -1:
+			    // Error
+					printf("\nERROR POLLING\n");
+			    break;
+			  case 0:
+			    // Timeout
+			    break;
+			  default:
+					//sem_wait_EH
+					sem_wait_EH(receive_sem, "close_connection");
+					if (receive_flag[socket]==0) {
+						recv_msg(socket, msg, MSG_SIZE);
+						if (check_exit(msg)) {
+							printf("\nIl thread ha ricevuto #exit.\n");
+							close_connection(socket);
+						}
+					}
+					sem_post_EH(receive_sem, "close_connection");
+					//sem_post_EH
+			    break;
+			}
     } while (flag==RICEVI_RICHIESTA);
 		sem_wait_EH(users_sem,"thread_connection");
 		users[socket].disponibile=DISPONIBILE;
@@ -201,6 +243,9 @@ void* thread_connection(void* arg) {
 	sem_post_EH(users_sem,"thread_connection");
 	printf("\nIl thread di %s sta per essere terminato poichè non più valido.\n", nickname);
   print_utenti(users, MAX_USERS);
+	sem_wait_EH(receive_sem, "close_connection");
+	receive_flag[socket]=0;
+	sem_post_EH(receive_sem, "close_connection");
   close(socket);
   pthread_exit(0);
 }
@@ -298,6 +343,8 @@ int main(int argc, char* argv[]) {
 		ERROR_HELPER(ret,"cannot initializate semaphore users_sem ");
 		ret=sem_init(&kill_sem,0,VALORE_INIZIALE_SEMAFORO);
 		ERROR_HELPER(ret,"cannot initializate semaphore kill_sem ");
+		ret=sem_init(&receive_sem,0,VALORE_INIZIALE_SEMAFORO);
+		ERROR_HELPER(ret,"cannot initializate semaphore receive_sem ");
 
     // inizia ad accettare connessioni in ingresso sulla porta data
     listen_on_port(port_number_no);
@@ -402,12 +449,11 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
 			close_connection(socket);
 		}
     printf("\nIn attesa di responso da parte di [%s]\n", altronickname);
-		do{
-			res=recv_and_parse(indice_altroutente, msg, MSG_SIZE);
-			if (res != NOT_A_COMMAND) do_message_action(res,indice_altroutente,msg,nickname);
-		} while (res != NOT_A_COMMAND);
-    printf("\nIl client %s ha risposto %c", altronickname, msg[0]);
-    res=send_msg(socket, msg); //invia responso
+		recv_msg(indice_altroutente, msg, MSG_SIZE);
+		printf("\nIl client %s ha risposto %c", altronickname, msg[0]);
+		if (check_exit(msg)) res=send_msg(socket, 'n');
+    else res=send_msg(socket, msg); //invia responso
+		printf("\nCIAO\n");
 		if (res == PIPE_ERROR ) {
 			close_connection(socket);
 		}
@@ -454,6 +500,11 @@ void close_connection(int socket) {
 	if (LOG) printf("\nSe il numero [%d] corrisponde a 0 è stato eliminato correttamente.\n", *(users[socket].valido));
   print_utenti(users, MAX_USERS);
 	sem_post_EH(users_sem,"close_connection");
+
+	sem_wait_EH(receive_sem, "close_connection");
+	receive_flag[socket]=0;
+	sem_post_EH(receive_sem, "close_connection");
+
 	close(socket);
 }
 

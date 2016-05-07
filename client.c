@@ -18,6 +18,7 @@ void do_message_action(int res, int socket, char* msg);
 sem_t kill_sem;
 int sock, kill_thread;
 
+
 void gestione_interrupt() {
 	printf("\nTerminazione richiesta. Chiusura delle connessioni attive...\n");
 	send_msg(sock, "#exit");
@@ -172,12 +173,13 @@ int main(int argc, char* argv[]) {
 	        continue;
 	      }
 	      altronickname=senzaslashenne(char2str(buff));
-	      recv_msg(sock, buff, MSG_SIZE);
+				printf("\nIn attesa di risposta da parte di %s\n", altronickname);
+				recv_msg(sock, buff, MSG_SIZE);
 	      if (check_buff(buff,'y')) {
 	        printf("\nL'utente [%s] ha accettato la richiesta!\n", altronickname);
 	        break;
 	      }
-	      if (check_buff(buff,'n')) printf("\nUtente [%s] non trovato o non te se 'ncula!\n", altronickname);
+	      if (check_buff(buff,'n')) printf("\nUtente [%s] non trovato o non disponibile per la chat!\n", altronickname);
 	    }
 			pthread_t send,rcv;
 			client_chat_arg arg1={sock,altronickname};

@@ -2,3 +2,6 @@
 2 bug commit
 3 i .h
 4 Luca faccina
+5 quando inserisci il nome della persona con cui ti vuoi
+  collegare e aspetti la risposta, se quella persona invia CTRL+C
+  il tuo client si blocca
