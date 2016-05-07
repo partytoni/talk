@@ -453,8 +453,6 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
 		printf("\nIl client %s ha risposto %s", altronickname, msg);
 		if (check_exit(msg)) {
 			res=send_msg(socket, "n");
-			printf("\nInviato n a %s\n",nickname );
-			printf("\nClose connection di  %s\n",altronickname );
 			close_connection(indice_altroutente);
 		}
     else res=send_msg(socket, msg); //invia responso
