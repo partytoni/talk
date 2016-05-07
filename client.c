@@ -91,6 +91,7 @@ int main(int argc, char* argv[]) {
   if (LOG) printf("\nUtente %s, porta %s\n", argv[6], argv[4]);
 
   signal(SIGINT, gestione_interrupt);
+	signal(SIGQUIT,gestione_interrupt);
   // we use network byte order
   in_addr_t ip_addr;
   unsigned short port_number_no;

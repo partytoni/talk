@@ -136,8 +136,8 @@ void* thread_connection(void* arg) {
     ricevi_modalita(socket, msg, nickname, &mode);
 
 
-    /*---------------------/*
-    /*  MODALITA ACCEPT   /*
+    /*---------------------*/
+    /*  MODALITA ACCEPT    */
     /*---------------------*/
 
     if (mode==1) {
@@ -149,6 +149,7 @@ void* thread_connection(void* arg) {
 			sem_post_EH(receive_sem, "close_connection");
 			//sem_post_EH
 			sem_wait_EH(users_sem,"thread_connection");
+			users[indice_altroutente].disponibile=!DISPONIBILE;
 			chat_args arg_send={socket,users[indice_altroutente].socket};
 			chat_args arg_rcv={users[indice_altroutente].socket, socket};
 			sem_post_EH(users_sem,"thread_connection");
@@ -424,7 +425,7 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
     }
 		sem_wait_EH(users_sem,"routine_inoltra_richiesta");
 		for (i=0;i<MAX_USERS;i++) {
-	    if (*(users[i].valido)==VALIDO && strlen(users[i].nickname)==strlen(altronickname) && strcmp(users[i].nickname, altronickname)==0) {
+	    if (*(users[i].valido)==VALIDO && users[i].disponibile==DISPONIBILE && strlen(users[i].nickname)==strlen(altronickname) && strcmp(users[i].nickname, altronickname)==0) {
 				indice_altroutente=i;
 			}
 	  }
