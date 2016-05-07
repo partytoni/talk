@@ -449,11 +449,15 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
 			close_connection(socket);
 		}
     printf("\nIn attesa di responso da parte di [%s]\n", altronickname);
-		recv_msg(indice_altroutente, msg, MSG_SIZE);
-		printf("\nIl client %s ha risposto %c", altronickname, msg[0]);
-		if (check_exit(msg)) res=send_msg(socket, 'n');
+		res=recv_msg(indice_altroutente, msg, MSG_SIZE);
+		printf("\nIl client %s ha risposto %s", altronickname, msg);
+		if (check_exit(msg)) {
+			res=send_msg(socket, "n");
+			printf("\nInviato n a %s\n",nickname );
+			printf("\nClose connection di  %s\n",altronickname );
+			close_connection(indice_altroutente);
+		}
     else res=send_msg(socket, msg); //invia responso
-		printf("\nCIAO\n");
 		if (res == PIPE_ERROR ) {
 			close_connection(socket);
 		}
