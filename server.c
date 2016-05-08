@@ -118,7 +118,7 @@ void* thread_connection(void* arg) {
 		users[socket].nickname=nickname;
 		*(users[socket].valido)=VALIDO;
 		users[socket].mode=NON_INIZIALIZZATO;
-		users[socket].disponibile=DISPONIBILE;
+		users[socket].disponibile=!DISPONIBILE;
 	  res=send_msg(socket, "y");
 		if (res == PIPE_ERROR ) {
 			close_connection(socket);
@@ -128,19 +128,24 @@ void* thread_connection(void* arg) {
 	}
 
   while (1) {
+		users[socket].disponibile=!DISPONIBILE;
+		if (LOG) printf("\nSettato %s a DISPONIBILE:%d!", users[socket].nickname, users[socket].disponibile);
 		sleep(0.6f);
 		//-------------invio lista-------------
 		invia_lista(socket, msg);
 		//-------------------------------------
     int mode;
     ricevi_modalita(socket, msg, nickname, &mode);
+		if (mode==RICEVI_RICHIESTA) users[socket].disponibile=DISPONIBILE;
+		if (mode==INVIA_RICHIESTA) users[socket].disponibile=!DISPONIBILE;
+		if (LOG) printf("\nSettato %s a DISPONIBILE:%d!", users[socket].nickname, users[socket].disponibile);
 
 
     /*---------------------*/
     /*  MODALITA ACCEPT    */
     /*---------------------*/
 
-    if (mode==1) {
+    if (mode==INVIA_RICHIESTA) {
       int indice_altroutente=routine_inoltra_richiesta(socket, msg, nickname);
 			//sem_wait_EH
 			sem_wait_EH(receive_sem, "close_connection");
@@ -149,7 +154,6 @@ void* thread_connection(void* arg) {
 			sem_post_EH(receive_sem, "close_connection");
 			//sem_post_EH
 			sem_wait_EH(users_sem,"thread_connection");
-			users[indice_altroutente].disponibile=!DISPONIBILE;
 			chat_args arg_send={socket,users[indice_altroutente].socket};
 			chat_args arg_rcv={users[indice_altroutente].socket, socket};
 			sem_post_EH(users_sem,"thread_connection");
@@ -235,6 +239,7 @@ void* thread_connection(void* arg) {
     } while (flag==RICEVI_RICHIESTA);
 		sem_wait_EH(users_sem,"thread_connection");
 		users[socket].disponibile=DISPONIBILE;
+		if (LOG) printf("\nSettato %s a DISPONIBILE:%d!", users[socket].nickname, users[socket].disponibile);
 		sem_post_EH(users_sem,"thread_connection");
   }
 
@@ -399,6 +404,7 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
 	int indice_altro, i;
 	sem_wait_EH(users_sem,"routine_inoltra_richiesta");
 	users[socket].disponibile=!DISPONIBILE;
+	if (LOG) printf("\nSettato %s a DISPONIBILE:%d!", users[socket].nickname, users[socket].disponibile);
 	print_utenti(users, MAX_USERS);
 	sem_post_EH(users_sem,"routine_inoltra_richiesta");
 	int trovato=0, res, indice_altroutente=-1;
@@ -424,8 +430,10 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
         continue;
     }
 		sem_wait_EH(users_sem,"routine_inoltra_richiesta");
+		
 		for (i=0;i<MAX_USERS;i++) {
 	    if (*(users[i].valido)==VALIDO && users[i].disponibile==DISPONIBILE && strlen(users[i].nickname)==strlen(altronickname) && strcmp(users[i].nickname, altronickname)==0) {
+				if (LOG) printf("\nHo trovato l'utente %s e la sua disponibilità è %d", users[i].nickname,users[i].disponibile);
 				indice_altroutente=i;
 			}
 	  }
@@ -444,6 +452,10 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
     else {
       printf("\nUtente trovato.\n");
     }
+
+
+		users[indice_altroutente].disponibile=!DISPONIBILE;
+		if (LOG) printf("\nSettato %s a DISPONIBILE:%d!", users[indice_altroutente].nickname, users[indice_altroutente].disponibile);
 
 		res=send_msg(indice_altroutente, nickname);
 		if (res == PIPE_ERROR ) {
@@ -466,6 +478,10 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
 
 		if (valid_flag==VALIDO && check_buff(msg, 'y')) {
 			break;
+		}
+		else {
+			users[indice_altroutente].disponibile=DISPONIBILE;
+			if (LOG) printf("\nSettato %s a DISPONIBILE:%d!", users[indice_altroutente].nickname, users[indice_altroutente].disponibile);
 		}
 	}
 	return indice_altroutente;

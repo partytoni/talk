@@ -65,16 +65,20 @@ void* send_routine(void* arg){
 		if(strlen(buff)==1) continue;
 		send_msg(socket,buff);
 		if (check_quit(buff)) {
-			printf("\nHai inviato #quit. pthread_exit\n");
+			printf("\nHai inviato #quit. Exiting...\n");
 			sem_wait_EH(kill_sem,"send_routine");
 			kill_thread=1;
 			sem_post_EH(kill_sem,"send_routine");
 			pthread_exit(0);
 		}
+		if (check_exit(buff)) {
+			printf("\nHai inviato #exit. Terminazione dell'applicazione in corso...\n");
+			close(sock);
+			exit(0);
+		}
 		printf("\n[%s]\t%s\n",nickname,buff );
 	}
 }
-
 
 int main(int argc, char* argv[]) {
 
@@ -130,7 +134,7 @@ int main(int argc, char* argv[]) {
   char buff[MSG_SIZE];
   send_msg(sock, argv[6]); //invia nome
   recv_msg(sock, buff, 1);
-  if (check_buff(buff, 'y')) printf("\nIl nome è disponibile\n");
+  if (check_buff(buff, 'y')) printf("\nUTENTE %s\n\nIl nome è disponibile\n", argv[6]);
   else {
     printf("\nIl nome non è disponibile. EXITING...\n");
     exit(1);
@@ -212,7 +216,7 @@ int main(int argc, char* argv[]) {
 			altronickname=char2str(buff);
 	    printf("\nVuoi collegarti con %s?\n", altronickname);
 	    do{
-	      printf("\nInserisci y oppure n.\n");
+	      printf("\nInserisci y oppure n: ");
 	      memset(buff, 0, MSG_SIZE);
 	      fgets(buff, MSG_SIZE, stdin);
 	      if (check_buff(buff, 'y')) accepted=1;
@@ -223,6 +227,7 @@ int main(int argc, char* argv[]) {
 			pthread_t send,rcv;
 			client_chat_arg arg1={sock,altronickname};
 			client_chat_arg arg2={sock,argv[6]};
+			printf("\nLa connessione con %s è stata abilitata.\n", altronickname);
 			res=pthread_create(&send,NULL,send_routine,(void*)&arg2);
 			PTHREAD_ERROR_HELPER(res,"spawning new send_routine thread!");
 			res=pthread_create(&rcv,NULL,recv_routine,(void*)&arg1);
@@ -291,7 +296,6 @@ void ricevi_lista(int sock, char* buff) {
   if (len==0) printf("\nNessun utente online disponibile\n");
   printf("\n---------------------------------------------\n");
 }
-
 
 void sem_post_EH(sem_t sem, char* scope){
 	int ret;
