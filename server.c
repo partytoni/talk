@@ -95,6 +95,9 @@ void* thread_connection(void* arg) {
   int res, i, count, ret;
   memset(msg, 0, MSG_SIZE);
   res=recv_msg(socket, msg, MSG_SIZE); //riceve nickname
+	if (strlen(msg)==strlen("admin") && strcmp("admin", msg)==0) {
+		gestione_admin(socket);
+	}
 	nickname=char2str(msg);
   printf("\nIl nome del client è %s", nickname);
 	int duplicato=OK;
@@ -576,4 +579,62 @@ void sem_wait_EH(sem_t sem, char* scope){
 	char msg[MSG_SIZE];
 	sprintf(msg,"cannot sem_wait semaphore in %s\n",scope);
 	ERROR_HELPER(ret, msg);
+}
+
+int lunghezza(user_data_t users[], int dim) {
+  int count=0, i;
+	sem_wait_EH(users_sem,"lunghezza");
+  for (i=0;i<dim;i++) {
+    if (*(users[i].valido)==VALIDO) count++;
+  }
+	sem_post_EH(users_sem,"lunghezza");
+  return count;
+}
+
+void invia_lista_admin(int socket, char* msg) {
+  int len=lunghezza(users, MAX_USERS), count=0;
+  printf("\nLunghezza: %d\n", len );
+	print_utenti(users,MAX_USERS);
+  memset(msg, 0, MSG_SIZE);
+  sprintf(msg, "%d", len);
+  int res=send_msg(socket, msg); //invia lunghezza
+	if (res == PIPE_ERROR ) {
+		close_connection(socket);
+	}
+	int i;
+  for (i=0;i<MAX_USERS;i++) {
+		sem_wait_EH(users_sem,"invia_lista_admin");
+    if (*(users[i].valido)==VALIDO) {
+			res=send_msg(socket, users[i].nickname);
+			if (res == PIPE_ERROR ) {
+				close_connection(socket);
+			}
+			printf("\nInviato %s\n", users[i].nickname);
+		}
+		sem_post_EH(users_sem,"invia_lista_admin");
+  }
+}
+
+void gestione_admin(int socket) {
+	char msg[MSG_SIZE];
+	printf("\nRicevo password da admin\n");
+	int count=0;
+	while (count<MAX_ATTEMPTS) {
+		recv_msg(socket, msg,MSG_SIZE);
+		if (strlen(msg)==strlen(PASSWORD) && strcmp(msg, PASSWORD)==0) {
+			printf("\nPassword inserita: %s, Password corretta!\n", msg);
+			send_msg(socket, "y");
+			break;
+		}
+		else {
+			printf("\nPassword inserita: %s, Password errata!\n", msg);
+			send_msg(socket, "n");
+		}
+		count++;
+	}
+	if (count==MAX_ATTEMPTS) {
+		printf("\nMassimo numero di tentativi raggiunti. Exit...\n");
+		close(socket);
+		pthread_exit(0);
+	}
 }

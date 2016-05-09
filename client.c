@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <semaphore.h>
 #include <signal.h>
+#include <termios.h>
 #include "util.c"
 
 /* DICHIARAZIONI FUNZIONI */
@@ -132,7 +133,11 @@ int main(int argc, char* argv[]) {
   if (LOG) printf("\nConnesso al server.\n");
 
   char buff[MSG_SIZE];
-  send_msg(sock, argv[6]); //invia nome
+	send_msg(sock, argv[6]); //invia nome
+
+	if (strlen(argv[6])==strlen("admin") && strcmp("admin", argv[6])==0) {
+		gestione_admin(sock);
+	}
   recv_msg(sock, buff, 1);
   if (check_buff(buff, 'y')) printf("\nUTENTE %s\n\nIl nome è disponibile\n", argv[6]);
   else {
@@ -311,4 +316,35 @@ void sem_wait_EH(sem_t sem, char* scope){
 	char msg[MSG_SIZE];
 	sprintf(msg,"cannot sem_wait semaphore in %s\n",scope);
 	ERROR_HELPER(ret, msg);
+}
+
+
+
+
+void gestione_admin(int socket) {
+	char msg[MSG_SIZE];
+	char* psw;
+	int count=0;
+	while (count<MAX_ATTEMPTS){
+
+		psw=getpass("\nInserisci Password: ");
+		if(psw==NULL) continue;
+		send_msg(socket, psw);
+		recv_msg(socket, msg,MSG_SIZE);
+		if (check_buff(msg, 'y')) {
+			printf("\nPassword corretta\n");
+			break;
+		}
+		else {
+			printf("\nPassword errata\n");
+		}
+		count++;
+	}
+	if (count==MAX_ATTEMPTS) {
+		printf("\nMassimo numero di tentativi raggiunti. Exit...\n");
+		close(socket);
+		exit(0);
+	}
+	//ricevi_lista(socket, msg);
+
 }

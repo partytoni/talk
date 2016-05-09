@@ -26,6 +26,8 @@
 #define LIST 2
 #define HELP 3
 #define EXIT 4
+#define PASSWORD "lucascemo"
+#define MAX_ATTEMPTS 3
 
 #ifdef DEBUG
   #define LOG 1
