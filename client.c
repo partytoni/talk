@@ -63,7 +63,7 @@ void* send_routine(void* arg){
 	while(1){
 		memset(buff,0,MSG_SIZE);
 		fgets(buff,MSG_SIZE,stdin);
-		if(strlen(buff)==1) continue;
+		if(strlen(buff)==1 && buff[0]=='\n') continue;
 		send_msg(socket,buff);
 		if (check_quit(buff)) {
 			printf("\nHai inviato #quit. Exiting...\n");
@@ -353,6 +353,10 @@ void do_message_action_admin(int res, int socket, char* msg) {
 		recv_msg(socket, msg, MSG_SIZE);
 		if (check_buff(msg, 'n')) printf("\nUtente non esistente.\n");
 		if (check_buff(msg, 'y')) printf("\nUtente eliminato.\n");
+	}
+	if(res == SHUTDOWN){
+		printf("Hai terminato il server \n");
+		exit(0);
 	}
 }
 

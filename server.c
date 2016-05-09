@@ -16,6 +16,7 @@ user_data_t users[MAX_USERS];
 sem_t users_sem,kill_sem, receive_sem;
 int kill_thread[MAX_USERS]={0};
 int receive_flag[MAX_USERS]={0};
+pthread_t cancel_from_admin[MAX_USERS];
 
 /* DICHIARAZIONI FUNZIONI */
 void do_message_action(int res, int socket, char* buff, char* nickname);
@@ -30,7 +31,18 @@ int numero_disponibili(user_data_t users[], int dim);
 
 void gestione_interrupt() {
 	printf("\n[SERVER]\tTerminazione del server....\n");
-	exit(0);
+	char* psw;
+	int count=0;
+	while(count<MAX_ATTEMPTS){
+		count++;
+		printf("Attempt: %d",count);
+		psw=getpass("\nInserisci Password: ");
+		if(strlen(psw)==strlen(PASSWORD) && strcmp(psw, PASSWORD)==0) {
+			//close all
+			fflush(stdout);
+			exit(EXIT_SUCCESS);
+		}
+	}
 }
 
 void* chat_routine(void* arg) {
@@ -86,6 +98,8 @@ void* chat_routine(void* arg) {
 }
 
 void* thread_connection(void* arg) {
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
   session_thread_args_t* args = (session_thread_args_t*)arg;
   int socket=args->socket;
 	int indice_utente;
@@ -303,10 +317,10 @@ void listen_on_port(unsigned short port_number_no) {
 
         // inizia una sessione di chat per l'utente in ingresso
         pthread_t thread;
-        ret = pthread_create(&thread, NULL, thread_connection, args);
+        ret = pthread_create(&(cancel_from_admin[client_desc]), NULL, thread_connection, args);
         PTHREAD_ERROR_HELPER(ret, "Errore nella creazione di un thread");
 
-        ret = pthread_detach(thread);
+        ret = pthread_detach(cancel_from_admin[client_desc]);
         PTHREAD_ERROR_HELPER(ret, "Errore nel detach di un thread");
 
         // alloco un nuovo bufffer per servire la prossima connessione in ingresso
@@ -655,8 +669,15 @@ void do_message_action_admin(int res, int socket, char* msg) {
 		else {
 			printf("\nUtente trovato. Eliminato\n");
 			close_connection(indice_altroutente);
+			pthread_cancel(cancel_from_admin[indice_altroutente]);
 			send_msg(socket, "y");
 		}
+	}
+	if (res==SHUTDOWN){
+		printf("Server terminato da remoto....\n" );
+		//closeAll---
+		fflush(stdout);
+		exit(0);
 	}
 }
 
