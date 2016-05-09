@@ -312,13 +312,25 @@ void listen_on_port(unsigned short port_number_no) {
 }
 
 int main(int argc, char* argv[]) {
-    if(argc==2 && (strcmp(argv[1],"--help")==0 || strcmp(argv[1],"-h")==0)){
+    unsigned short port_number_no; // il suffisso "_no" sta per network byte order
+		char* port;
+		long tmp;
+		if(argc==2 && (strcmp(argv[1],"--help")==0 || strcmp(argv[1],"-h")==0)){
       printf("Lato server dell'applicazione talk, Usage ./server -p <port>\n");
       exit(1);
     }
-    if (argc!=3 || strcmp(argv[1],"-p")!=0) {
+		else if (argc==1){
+			port=(char*) malloc(6*sizeof(char));
+			port="9999";
+			tmp = strtol("9999", NULL, 0);
+		}
+		else if (argc==3 && strcmp(argv[1],"-p")==0){
+			port=argv[2];
+			tmp = strtol(argv[2], NULL, 0);
+		}
+    else if (argc!=3 || strcmp(argv[1],"-p")!=0) {
       printf("\nUsage: ./server -p <port>\n");
-      exit(1);
+			exit(1);
     }//parse command line
 		int i;
 		for (i=0;i<MAX_USERS;i++) { //inizializzazione
@@ -330,21 +342,19 @@ int main(int argc, char* argv[]) {
 			users[i].disponibile=!DISPONIBILE;
 	  }
 
-    printf("\nServer lanciato sulla porta %s\n", argv[2]);
+    printf("\nServer lanciato sulla porta %s\n", port);
     int ret;
 
     signal(SIGINT, gestione_interrupt);
+    signal(SIGQUIT, gestione_interrupt);
 
-    unsigned short port_number_no; // il suffisso "_no" sta per network byte order
 
-    // ottieni il numero di porta da usare per il server dall'argomento del comando
-    long tmp = strtol(argv[2], NULL, 0);
+
     if (tmp < 1024 || tmp > 49151) {
         fprintf(stderr, "Errore: utilizzare un numero di porta compreso tra 1024 e 49151.\n");
         exit(EXIT_FAILURE);
     }
-    port_number_no = htons((unsigned short)tmp);  //host to network short
-
+		port_number_no = htons((unsigned short)tmp);  //host to network short
 		ret=sem_init(&users_sem,0,VALORE_INIZIALE_SEMAFORO);
 		ERROR_HELPER(ret,"cannot initializate semaphore users_sem ");
 		ret=sem_init(&kill_sem,0,VALORE_INIZIALE_SEMAFORO);
@@ -401,17 +411,18 @@ void ricevi_modalita(int socket, char* msg, char* nickname, int* mode) {
 }
 
 int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
-	int indice_altro, i;
+	int i;
 	sem_wait_EH(users_sem,"routine_inoltra_richiesta");
 	users[socket].disponibile=!DISPONIBILE;
 	if (LOG) printf("\nSettato %s a DISPONIBILE:%d!", users[socket].nickname, users[socket].disponibile);
 	print_utenti(users, MAX_USERS);
 	sem_post_EH(users_sem,"routine_inoltra_richiesta");
-	int trovato=0, res, indice_altroutente=-1;
+	int trovato=0, res, indice_altroutente;
   char* altronickname;
 	user_data_t altroutente;
 	altroutente.valido=(int*) malloc(sizeof(int));
   while (1) {
+		indice_altroutente=-1;
     printf("\nIn attesa che il client %s invii il nome con cui si vuole collegare\n", nickname);
     res=recv_and_parse(socket, msg, MSG_SIZE); //riceve nome altroutente
     if (res!=NOT_A_COMMAND) {
@@ -430,11 +441,12 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
         continue;
     }
 		sem_wait_EH(users_sem,"routine_inoltra_richiesta");
-		
+
 		for (i=0;i<MAX_USERS;i++) {
 	    if (*(users[i].valido)==VALIDO && users[i].disponibile==DISPONIBILE && strlen(users[i].nickname)==strlen(altronickname) && strcmp(users[i].nickname, altronickname)==0) {
 				if (LOG) printf("\nHo trovato l'utente %s e la sua disponibilità è %d", users[i].nickname,users[i].disponibile);
 				indice_altroutente=i;
+				break;//trovato il mascalzone
 			}
 	  }
 		sem_post_EH(users_sem,"routine_inoltra_richiesta");

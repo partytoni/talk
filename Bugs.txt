@@ -1,5 +1,3 @@
-1 quando un utente è in mode0 resta visibile alle connessioni e
-puo essere contattato quindi va in segfault
-2 bug commit
+
 3 i .h
 4 Luca faccina
