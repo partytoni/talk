@@ -26,6 +26,8 @@
 #define LIST 2
 #define HELP 3
 #define EXIT 4
+#define CANCEL 5
+#define SHUTDOWN 6
 #define PASSWORD "lucascemo"
 #define MAX_ATTEMPTS 3
 
@@ -105,11 +107,13 @@ size_t recv_msg(int socket, char *buff, size_t buf_len) {
 }
 
 int message_action(char* buff) {
-  if (!check_buff(buff, '#')) return NOT_A_COMMAND;
   if (check_quit(buff)) return QUIT;
   if (check_list(buff)) return LIST;
   if (check_help(buff)) return HELP;
   if (check_exit(buff)) return EXIT;
+  if (check_cancel(buff)) return CANCEL;
+  if (check_shutdown(buff)) return SHUTDOWN;
+  else return NOT_A_COMMAND;
 }
 
 int recv_and_parse(int socket, char* buff, size_t buff_len) {
@@ -123,7 +127,9 @@ int recv_and_parse(int socket, char* buff, size_t buff_len) {
 int send_and_parse(int socket, char* buff) {
   int res;
   send_msg(socket, buff);
+  if (LOG) printf("\nSEND_AND_PARSE: %d", message_action(buff));
   return message_action(buff);
+
 }
 /*
 *******************************************************************
@@ -156,22 +162,14 @@ typedef struct{
 
 
 char* senzaslashenne(char* nome) {
-	int max=0,trovato=0;
-  while (max<strlen(nome)) {
-    if (nome[max]=='\n') trovato=1;
-    max++;
+  int count=0, len=strlen(nome);
+  char* ris=(char*) malloc(sizeof(char)*strlen(nome));
+  while (count<len) {
+    if (nome[count]=='\n') ris[count]='\0';
+    else ris[count]=nome[count];
+    count++;
   }
-  if (trovato==0) return nome;
-  max=0;
-	while (nome[max]!='\n') {
-		max++;
-	}
-	char* ris=(char*) malloc(max*sizeof(char));
-	int i;
-	for (i=0;i<max;i++) {
-		ris[i]=nome[i];
-	}
-	return ris;
+  return ris;
 }
 
 char* char2str(char *word){
@@ -188,6 +186,14 @@ int check_command(char* command, char* buff) {
 
 int check_quit(char* buff) {
   return check_command("#quit", buff);
+}
+
+int check_cancel(char* buff) {
+  return check_command("#cancel", buff);
+}
+
+int check_shutdown(char* buff) {
+  return check_command("#shutdown", buff);
 }
 
 int check_list(char* buff) {

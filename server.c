@@ -615,9 +615,54 @@ void invia_lista_admin(int socket, char* msg) {
   }
 }
 
+
+void do_message_action_admin(int res, int socket, char* msg) {
+  if (res==QUIT || res==EXIT) {
+    printf("\nL'admin ha deciso di voler uscire\n");
+		if (res==EXIT) close_connection(socket);
+    pthread_exit(0);
+  }
+
+  if (res==LIST) {
+    invia_lista_admin(socket, msg);
+  }
+
+	if (res==HELP) {
+		//koffing
+	}
+
+	if (res==CANCEL) {
+		invia_lista_admin(socket, msg);
+		do {
+			res=recv_msg(socket, msg, MSG_SIZE); //nome da eliminare
+		} while (res==0);
+		if (LOG) printf("\nL'admin vuole eliminare %s\n", msg);
+		char* nickname=senzaslashenne(msg);
+		sem_wait_EH(users_sem,"do_message_action_admin");
+		int indice_altroutente=-1, i;
+		for (i=0;i<MAX_USERS;i++) {
+	    if (*(users[i].valido)==VALIDO && strlen(users[i].nickname)==strlen(msg) && strcmp(users[i].nickname, msg)==0) {
+				if (LOG) printf("\nHo trovato l'utente %s e la sua disponibilità è %d", users[i].nickname,users[i].disponibile);
+				indice_altroutente=i;
+				break;//trovato il mascalzone
+			}
+	  }
+		sem_post_EH(users_sem,"do_message_action_admin");
+		if (indice_altroutente==-1) {
+			printf("\nUtente non trovato.\n");
+			send_msg(socket, "n");
+		}
+		else {
+			printf("\nUtente trovato. Eliminato\n");
+			close_connection(indice_altroutente);
+			send_msg(socket, "y");
+		}
+	}
+}
+
+
 void gestione_admin(int socket) {
 	char msg[MSG_SIZE];
-	printf("\nRicevo password da admin\n");
 	int count=0;
 	while (count<MAX_ATTEMPTS) {
 		recv_msg(socket, msg,MSG_SIZE);
@@ -637,4 +682,11 @@ void gestione_admin(int socket) {
 		close(socket);
 		pthread_exit(0);
 	}
+	int res;
+	while (1) {
+		res=recv_and_parse(socket, msg, MSG_SIZE);
+		if (check_quit(msg) || check_exit(msg)) break;
+		do_message_action_admin(res, socket, msg);
+	}
+	pthread_exit(0);
 }

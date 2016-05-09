@@ -318,13 +318,48 @@ void sem_wait_EH(sem_t sem, char* scope){
 	ERROR_HELPER(ret, msg);
 }
 
+void do_message_action_admin(int res, int socket, char* msg) {
+  if (res==LIST) {
+		if (LOG) printf("\nADMIN: Ricevo la lista...\n");
+    ricevi_lista(socket, msg);
+  }
 
-
+	if (res==HELP) {
+		char* welcome="\n\nHi welcome to talk application, type #command:";
+    char* quit="\n---- #quit to leave the current chat (if opened)";
+    char* help="\n---- #help to ask an SOS";
+    char* list="\n---- #list to refresh user list";
+		char* _exit="\n---- #exit to leave your awesome application\n";
+		char* shutdown="\n---- #shutdown to shutdown the server\n";
+		char* cancel="\n---- #cancel to close the connection with an user\n";
+    char* SOS[]={welcome,quit,help,list, _exit, shutdown, cancel};
+		int i=0;
+    while(i<7){
+      if(LOG) printf("%s",SOS[i]);
+      i++;
+    }
+	}
+	if (res==EXIT || res==QUIT){
+		printf("\nHai deciso di voler uscire. \n");
+    close(socket);
+    exit(0);
+	}
+	if (res==CANCEL) {
+		ricevi_lista(sock, msg);
+		printf("\nChi vuoi eliminare? ");
+		memset(msg, 0, MSG_SIZE);
+		fgets(msg, MSG_SIZE, stdin);
+		send_msg(socket, msg);
+		recv_msg(socket, msg, MSG_SIZE);
+		if (check_buff(msg, 'n')) printf("\nUtente non esistente.\n");
+		if (check_buff(msg, 'y')) printf("\nUtente eliminato.\n");
+	}
+}
 
 void gestione_admin(int socket) {
 	char msg[MSG_SIZE];
 	char* psw;
-	int count=0;
+	int count=0, res=1;
 	while (count<MAX_ATTEMPTS){
 
 		psw=getpass("\nInserisci Password: ");
@@ -345,6 +380,13 @@ void gestione_admin(int socket) {
 		close(socket);
 		exit(0);
 	}
-	//ricevi_lista(socket, msg);
-
+	while (1) {
+		printf("\nInserisci comando: ");
+		memset(msg, 0, MSG_SIZE);
+		fgets(msg, MSG_SIZE, stdin);
+		res=send_and_parse(socket, msg);
+		if (check_quit(msg) || check_exit(msg)) break;
+		do_message_action_admin(res, socket, msg);
+	}
+	exit(0);
 }
