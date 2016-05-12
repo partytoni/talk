@@ -111,8 +111,10 @@ int main(int argc, char* argv[]) {
 	else if(argc==3 && strcmp(argv[1],"-a")==0){
 		sprintf(porta, "%s","9999");
 		sprintf(address,"%s",argv[2]);
-		printf("\nInserire il nome utente: " );
-		fgets(nickname,MSG_SIZE,stdin);
+		do {
+			printf("\nInserire il nome utente: (non sono permessi nomi che iniziano per '#')" );
+			fgets(nickname,MSG_SIZE,stdin);
+		} while (check_buff(nickname, '#'));
 		senzaslashenne(nickname);
 	}
 

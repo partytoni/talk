@@ -120,7 +120,7 @@ void* thread_connection(void* arg) {
 	if (strlen(msg)==strlen("admin") && strcmp("admin", msg)==0) {
 		gestione_admin(socket);
 	}
-	nickname=char2str(msg);
+	nickname=senzaslashenne(char2str(msg));
   printf("\nIl nome del client è %s", nickname);
 	int duplicato=OK;
 	sem_wait_EH(users_sem,"thread_connection");
@@ -592,7 +592,7 @@ void print_utenti(user_data_t users[], int dim) {
   for (i=0;i<dim;i++) {
     if (*(users[i].valido)==VALIDO) {
       count++;
-      printf("\n%d - %s\n", count, users[i].nickname);
+      printf("\n%d - [%s]\n", count, users[i].nickname);
     }
   }
   if (count==0) printf("\nNessun Utente Online\n");
