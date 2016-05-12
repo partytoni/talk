@@ -60,7 +60,15 @@ void* chat_routine(void* arg) {
 	char msg[MSG_SIZE];
 	while (1) {
 		res=recv_msg(src, msg, MSG_SIZE);
-
+		if (res==TIMEOUT_EXPIRED) {
+			sem_wait_EH(kill_sem, "chat_routine");
+			send_msg(src, "#quit");
+			send_msg(dest, "#quit");
+			kill_thread[src]=1;
+			kill_thread[dest]=1;
+			sem_post_EH(kill_sem, "chat_routine");
+			pthread_exit(0);
+		}
 		if (res==-1) {	//il client ha chiuso la socket
 			res=send_msg(dest,"#quit");
 			if (res == PIPE_ERROR ) {
@@ -424,11 +432,6 @@ void do_message_action(int res, int socket, char* msg, char* nickname) {
 void ricevi_modalita(int socket, char* msg, char* nickname, int* mode) {
   int res;
 	res=recv_msg(socket, msg, MSG_SIZE);
-	printf("RICEVUTO [ ");
-	int i;
-	for (i=0;i<MSG_SIZE;i++) {
-		printf("%d  ", (senzaslashenne(msg)[i]));
-	}
 	if (res!=TIMEOUT_EXPIRED && !check_exit(msg)) *mode=atoi(msg);
 	else{
 		send_msg(socket,"#shutdown");
