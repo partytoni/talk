@@ -91,38 +91,61 @@ void* send_routine(void* arg){
 }
 
 int main(int argc, char* argv[]) {
-
+	char nickname[MSG_SIZE];
+	char porta[6];
+	char address[16];
 	if(argc==2 && strcmp(argv[1],"--help")==0){
 		printf("lato client dell'applicazione talk, per connettersi al server e parlare con altri utenti usare : ./client -a <ServerAddress> -p <port> -u <USERNAME>\n");
+		printf("Oppure ./client -a <ServerAddress>\n");
+		printf("Oppure ./client -u <NomeUtente> per fare delle prove su proprio pc (ServerAddress di default 127.0.0.1)\n");
 		exit(1);
 	}
+	else if (argc==3 && strcmp(argv[1],"-u")==0 ){
+		sprintf(porta, "%s","9999");
+		sprintf(address,"%s","127.0.0.1");
+		sprintf(nickname, "%s",argv[2]);
+	}
 
-	if (argc!=7 || strcmp(argv[1],"-a")!=0 || strcmp(argv[3],"-p")!=0 || strcmp(argv[5],"-u")!=0) {
+	else if(argc==3 && strcmp(argv[1],"-a")==0){
+		sprintf(porta, "%s","9999");
+		sprintf(address,"%s",argv[2]);
+		printf("\nInserire il nome utente: " );
+		fgets(nickname,MSG_SIZE,stdin);
+		senzaslashenne(nickname);
+	}
+
+	else if (argc==7 || strcmp(argv[1],"-a")==0 || strcmp(argv[3],"-p")==0 || strcmp(argv[5],"-u")==0){
+		sprintf(porta, "%s",argv[2]);
+		sprintf(address,"%s",argv[4]);
+		sprintf(nickname, "%s",argv[6]);	}
+
+	else  {
 		printf("\nUsage: ./client -a <address> -p <port> -u <user>\n");
+		printf("Or ./client -a <ServerAddress>\n");
+		printf("Or ./client -u <UserName> (Default ServerAddress = 127.0.0.1)\n");
 		exit(1);
 	}//parse command line
 
-	if (LOG) printf("\nUtente %s, porta %s\n", argv[6], argv[4]);
+	if (LOG) printf("\nUtente %s, porta %s\n", nickname, porta);
 
 	signal(SIGINT, gestione_interrupt);
 	signal(SIGQUIT,gestione_interrupt);
 	// we use network byte order
 	in_addr_t ip_addr;
 	unsigned short port_number_no;
-	char nickname[MSG_SIZE];
 
 	// resrieve IP address
-	ip_addr = inet_addr(argv[2]); // we omit error checking
+	ip_addr = inet_addr(address); // we omit error checking
 
 	// resrieve port number
-	long tmp = strtol(argv[4], NULL, 0); // safer than atoi()
+	long tmp = strtol(porta, NULL, 0); // safer than atoi()
 	if (tmp < 1024 || tmp > 49151) {
 		fprintf(stderr, "Please use a port number between 1024 and 49151.\n");
 		exit(EXIT_FAILURE);
 	}
 	port_number_no = htons((unsigned short)tmp);
 
-	sprintf(nickname, "%s", argv[6]);
+
 
 	int res;
 	struct sockaddr_in server_addr = {0}; // some fields are required to be filled with 0
@@ -142,14 +165,14 @@ int main(int argc, char* argv[]) {
 	if (LOG) printf("\nConnesso al server.\n");
 
 	char buff[MSG_SIZE];
-	send_msg(sock, argv[6]); //invia nome
+	send_msg(sock, nickname); //invia nome
 
-	if (strlen(argv[6])==strlen("admin") && strcmp("admin", argv[6])==0) {
+	if (strlen(nickname)==strlen("admin") && strcmp("admin", nickname)==0) {
 		gestione_admin(sock);
 	}
 	recv_msg(sock, buff, MSG_SIZE);
-	if (check_buff(buff, 'y')) printf("\nUTENTE %s\n\nIl nome è disponibile\n", argv[6]);
-	
+	if (check_buff(buff, 'y')) printf("\nUTENTE %s\n\nIl nome è disponibile\n", nickname);
+
 	else {
 		printf("\nIl nome non è disponibile. EXITING...\n");
 		exit(1);
@@ -216,7 +239,7 @@ int main(int argc, char* argv[]) {
 			}
 			pthread_t send,rcv;
 			client_chat_arg arg1={sock,altronickname};
-			client_chat_arg arg2={sock,argv[6]};
+			client_chat_arg arg2={sock,nickname};
 			printf("\nLa connessione con %s è stata abilitata.\n", altronickname);
 			res=pthread_create(&send,NULL,send_routine,(void*)&arg2);
 			PTHREAD_ERROR_HELPER(res,"spawning new send_routine thread!");
@@ -261,7 +284,7 @@ int main(int argc, char* argv[]) {
 			if (check_buff(buff, 'n')) continue;
 			pthread_t send,rcv;
 			client_chat_arg arg1={sock,altronickname};
-			client_chat_arg arg2={sock,argv[6]};
+			client_chat_arg arg2={sock,nickname};
 			printf("\nLa connessione con %s è stata abilitata.\n", altronickname);
 			res=pthread_create(&send,NULL,send_routine,(void*)&arg2);
 			PTHREAD_ERROR_HELPER(res,"spawning new send_routine thread!");

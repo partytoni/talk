@@ -126,7 +126,6 @@ int recv_and_parse(int socket, char* buff, size_t buff_len) {
 int send_and_parse(int socket, char* buff) {
   int res;
   send_msg(socket, buff);
-  if (LOG) printf("\nSEND_AND_PARSE: %d", message_action(buff));
   return message_action(buff);
 
 }
