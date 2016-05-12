@@ -48,12 +48,9 @@ void* recv_routine(void* arg){
 			sem_post_EH(kill_sem,"recv_routine");
 			pthread_exit(0);
 		}
-		if (check_shutdown(buff)){
-			printf("\nSorry...il server non è al momento disponibile\n");
-			exit(0);
-		}
-		if (check_shutdown(buff)){
-			printf("\nSorry...il server non è al momento disponibile\n");
+		if (check_shutdown(buff) || check_cancel(buff) ){
+			if (check_cancel(buff) ) printf("\nSei stato cancellato dall'admin....exiting...\n" );
+			else printf("\nSorry...il server non è al momento disponibile\n");
 			exit(0);
 		}
 
@@ -71,7 +68,7 @@ void* send_routine(void* arg){
 	while(1){
 		memset(buff,0,MSG_SIZE);
 		fgets(buff,MSG_SIZE,stdin);
-		if (check_shutdown(buff)){
+		if (check_shutdown(buff) || check_cancel(buff)){
 			printf("\nNon sei abilitato ad usare il comando %s\n",buff );
 			continue;
 		}
@@ -152,10 +149,7 @@ int main(int argc, char* argv[]) {
 	}
 	recv_msg(sock, buff, MSG_SIZE);
 	if (check_buff(buff, 'y')) printf("\nUTENTE %s\n\nIl nome è disponibile\n", argv[6]);
-	else if (check_shutdown(buff)){
-		printf("\nSorry...il server non è al momento disponibile\n");
-		exit(0);
-	}
+	
 	else {
 		printf("\nIl nome non è disponibile. EXITING...\n");
 		exit(1);
@@ -193,7 +187,7 @@ int main(int argc, char* argv[]) {
 				memset(buff, 0, MSG_SIZE);
 				fgets(buff, MSG_SIZE, stdin);
 
-				if (check_shutdown(buff)){
+				if (check_shutdown(buff) || check_cancel(buff) ){
 					printf("\nNon sei abilitato ad usare il comando %s\n",buff );
 					continue;
 				}
@@ -207,10 +201,13 @@ int main(int argc, char* argv[]) {
 				altronickname=senzaslashenne(char2str(buff));
 				printf("\nIn attesa di risposta da parte di %s\n", altronickname);
 				recv_msg(sock, buff, MSG_SIZE);
-				if (check_shutdown(buff)){
-					printf("\nSorry...il server non è al momento disponibile\n");
+
+				if (check_shutdown(buff) || check_cancel(buff) ){
+					if (check_cancel(buff) ) printf("\nSei stato cancellato dall'admin....exiting...\n");
+					else printf("\nSorry...il server non è al momento disponibile\n");
 					exit(0);
 				}
+
 				if (check_buff(buff,'y')) {
 					printf("\nL'utente [%s] ha accettato la richiesta!\n", altronickname);
 					break;
@@ -245,8 +242,9 @@ int main(int argc, char* argv[]) {
 				res=recv_msg(sock, buff, MSG_SIZE); //legge nome che vuole collegarsi con lui
 			}while(res==0);
 
-			if (check_shutdown(buff)){
-				printf("\nSorry...il server non è al momento disponibile\n");
+			if (check_shutdown(buff) || check_cancel(buff) ){
+				if (check_cancel(buff) ) printf("\nSei stato cancellato dall'admin....exiting...\n" );
+				else printf("\nSorry...il server non è al momento disponibile\n");
 				exit(0);
 			}
 
@@ -320,8 +318,9 @@ void ricevi_lista(int sock, char* buff) {
 		res=recv_msg(sock, buff, MSG_SIZE);
 	} while (res==0);
 
-	if (check_shutdown(buff)){
-		printf("\nSorry...il server non è al momento disponibile\n");
+	if (check_shutdown(buff) || check_cancel(buff) ){
+		if (check_cancel(buff) ) printf("\nSei stato cancellato dall'admin....exiting...\n" );
+		else printf("\nSorry...il server non è al momento disponibile\n");
 		exit(0);
 	}
 
@@ -335,8 +334,9 @@ void ricevi_lista(int sock, char* buff) {
 			res=recv_msg(sock, buff, MSG_SIZE);
 		} while (res==0);
 
-		if (check_shutdown(buff)){
-			printf("\nSorry...il server non è al momento disponibile\n");
+		if (check_shutdown(buff) || check_cancel(buff) ){
+			if (check_cancel(buff) ) printf("\nSei stato cancellato dall'admin....exiting...\n" );
+			else printf("\nSorry...il server non è al momento disponibile\n");
 			exit(0);
 		}
 

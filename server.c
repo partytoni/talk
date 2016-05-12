@@ -676,7 +676,7 @@ void do_message_action_admin(int res, int socket, char* msg) {
 		else {
 			printf("\nUtente trovato. Eliminato\n");
 			send_msg(indice_utente, "#cancel");
-			send_msg(users[indice_utente].socket_altroutente, "#exit");
+			if (users[indice_utente].socket_altroutente!=NON_INIZIALIZZATO) send_msg(users[indice_utente].socket_altroutente, "#exit");
 			close_connection(indice_utente);
 			pthread_cancel(cancel_from_admin[indice_utente]);
 			send_msg(socket, "y");

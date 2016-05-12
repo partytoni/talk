@@ -20,7 +20,7 @@
 #define MSG_SIZE 1024
 #define NICKNAME_SIZE 128
 #define MAX_USERS 128
-#define PIPE_ERROR -1
+#define PIPE_ERROR -4
 #define NOT_A_COMMAND 0
 #define QUIT 1
 #define LIST 2
@@ -62,8 +62,7 @@ int send_msg(int socket, const char *msg) {
     while (bytes_left > 0) {
         ret = send(socket, msg_to_send + bytes_sent, bytes_left, MSG_NOSIGNAL);
         if (ret == -1 && errno == EINTR) continue;
-        if (ret == -1 && errno == EPIPE) return PIPE_ERROR;
-        ERROR_HELPER(ret, "Errore nella scrittura su socket");
+        else if (ret == -1 && errno == EPIPE) return PIPE_ERROR;
 
         bytes_left -= ret;
         bytes_sent += ret;
