@@ -258,7 +258,7 @@ int main(int argc, char* argv[]) {
 					break;
 				}
 				sem_post_EH(kill_sem,"main");
-				sleep(0.5f);
+				usleep(USLEEP);
 			}
 		}
 
@@ -303,7 +303,7 @@ int main(int argc, char* argv[]) {
 					break;
 				}
 				sem_post_EH(kill_sem,"main");
-				sleep(0.5f);
+				usleep(USLEEP);
 			}
 		}
 		sem_wait_EH(kill_sem,"main");

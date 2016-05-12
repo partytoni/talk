@@ -31,7 +31,6 @@ int numero_disponibili(user_data_t users[], int dim);
 
 void gestione_interrupt() {
 	printf("\n[SERVER]\tTerminazione del server....\n");
-	if (LOG) exit(0);
 	char* psw;
 	int count=0;
 	while(count<MAX_ATTEMPTS){
@@ -40,8 +39,15 @@ void gestione_interrupt() {
 		psw=getpass("\nInserisci Password: ");
 		if(strlen(psw)==strlen(PASSWORD) && strcmp(psw, PASSWORD)==0) {
 			//close all
+			printf("Server terminato da remoto....\n" );
+			int i;
+			for (i=0;i<MAX_USERS;i++){
+				if( *(users[i].valido) ){
+					send_msg(i,"#shutdown");
+				}
+			}
 			fflush(stdout);
-			exit(EXIT_SUCCESS);
+			exit(0);
 		}
 	}
 	printf("\nNumero massimo di tentativi raggiunto.\n");
@@ -694,7 +700,7 @@ void do_message_action_admin(int res, int socket, char* msg) {
 		sem_wait_EH(users_sem,"do_message_action_admin");
 		int indice_utente=-1, i;
 		for (i=0;i<MAX_USERS;i++) {
-	    if (*(users[i].valido)==VALIDO && strlen(users[i].nickname)==strlen(msg) && strcmp(users[i].nickname, msg)==0) {
+	    if (*(users[i].valido)==VALIDO && strlen(users[i].nickname)==strlen(nickname) && strcmp(users[i].nickname, nickname)==0) {
 				if (LOG) printf("\nHo trovato l'utente %s e la sua disponibilità è %d", users[i].nickname,users[i].disponibile);
 				indice_utente=i;
 				break;//trovato il mascalzone

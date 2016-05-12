@@ -31,8 +31,9 @@
 #define PASSWORD "lucascemo"
 #define MAX_ATTEMPTS 3
 #define TIMEOUT_EXPIRED -555
-#define TIMEOUT_SERVER_SECS 20
+#define TIMEOUT_SERVER_SECS 60
 #define TIMEOUT_SERVER_MICROSECS 0
+#define USLEEP 500000
 
 #ifdef DEBUG
 #define LOG 1
