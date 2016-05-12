@@ -36,7 +36,6 @@ void* recv_routine(void* arg){
 	char buff[MSG_SIZE];
 	while(1){
 		res=recv_msg(socket,buff,MSG_SIZE);
-		if (res==0) continue;
 		if (res==-1) {
 			printf("\nIl client %s ha terminato la connessione. EXITING...\n", nickname);
 			sem_wait_EH(kill_sem,"recv_routine");
@@ -265,10 +264,9 @@ int main(int argc, char* argv[]) {
 		int accepted=0;
 		while (mode==0 && accepted==0) {
 			printf("\nSei in attesa di richiesta di chat\n");
-			do{
-				res=recv_msg(sock, buff, MSG_SIZE); //legge nome che vuole collegarsi con lui
-			}while(res==0);
-
+			res=recv_msg(sock, buff, MSG_SIZE); //legge nome che vuole collegarsi con lui
+			if (res==0) exit(0);
+			if (LOG) printf("RES: %d\n",res );
 			if (check_shutdown(buff) || check_cancel(buff) ){
 				if (check_cancel(buff) ) printf("\nSei stato cancellato dall'admin....exiting...\n" );
 				else printf("\nSorry...il server non è al momento disponibile\n");
@@ -341,9 +339,7 @@ void do_message_action(int res, int socket, char* msg) {
 
 void ricevi_lista(int sock, char* buff) {
 	int res;
-	do {
-		res=recv_msg(sock, buff, MSG_SIZE);
-	} while (res==0);
+	res=recv_msg(sock, buff, MSG_SIZE);
 
 	if (check_shutdown(buff) || check_cancel(buff) ){
 		if (check_cancel(buff) ) printf("\nSei stato cancellato dall'admin....exiting...\n" );
@@ -357,9 +353,8 @@ void ricevi_lista(int sock, char* buff) {
 	while (count<len) {
 		count++;
 		memset(buff, 0, MSG_SIZE);
-		do {
-			res=recv_msg(sock, buff, MSG_SIZE);
-		} while (res==0);
+		res=recv_msg(sock, buff, MSG_SIZE);
+
 
 		if (check_shutdown(buff) || check_cancel(buff) ){
 			if (check_cancel(buff) ) printf("\nSei stato cancellato dall'admin....exiting...\n" );
@@ -434,12 +429,15 @@ void do_message_action_admin(int res, int socket, char* msg) {
 void gestione_admin(int socket) {
 	char msg[MSG_SIZE];
 	char* psw;
-	int count=0, res=1;
+	int count=0, res;
 	while (count<MAX_ATTEMPTS){
-
 		psw=getpass("\nInserisci Password: ");
 		if(psw==NULL) continue;
-		send_msg(socket, psw);
+		res=send(socket, psw, strlen(psw), MSG_NOSIGNAL);
+		if (res==-1 && errno==EPIPE) {
+			printf("\nLa connessione con il server è terminata\n");
+			exit(0);
+		}
 		recv_msg(socket, msg,MSG_SIZE);
 		if (check_buff(msg, 'y')) {
 			printf("\nPassword corretta\n");

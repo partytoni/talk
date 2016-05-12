@@ -31,21 +31,21 @@
 #define PASSWORD "lucascemo"
 #define MAX_ATTEMPTS 3
 #define TIMEOUT_EXPIRED -555
-#define TIMEOUT_SERVER_SECS 10
+#define TIMEOUT_SERVER_SECS 20
 #define TIMEOUT_SERVER_MICROSECS 0
 
 #ifdef DEBUG
-  #define LOG 1
+#define LOG 1
 #else
-  #define LOG 0
+#define LOG 0
 #endif
 
 #define GENERIC_ERROR_HELPER(cond, errCode, msg) do {               \
-        if (cond) {                                                 \
-            fprintf(stderr, "%s: %s\n", msg, strerror(errCode));    \
-            exit(EXIT_FAILURE);                                     \
-        }                                                           \
-    } while(0)
+  if (cond) {                                                 \
+    fprintf(stderr, "%s: %s\n", msg, strerror(errCode));    \
+    exit(EXIT_FAILURE);                                     \
+  }                                                           \
+} while(0)
 
 #define ERROR_HELPER(ret, msg)          GENERIC_ERROR_HELPER((ret < 0), errno, msg)
 #define PTHREAD_ERROR_HELPER(ret, msg)  GENERIC_ERROR_HELPER((ret != 0), ret, msg)
@@ -54,60 +54,83 @@
 /* DICHIARAZIONI*/
 char* char2str(char *word);
 int check_buff(char* buff, char ack);
+char* senzaslashenne(char* nome);
 /*-------------*/
 
-int send_msg(int socket, const char *msg) {
-    int ret;
-    char msg_to_send[MSG_SIZE];
-    sprintf(msg_to_send, "%s\n", msg);
-    int bytes_left = strlen(msg_to_send);
-    int bytes_sent = 0;
-    while (bytes_left > 0) {
-        ret = send(socket, msg_to_send + bytes_sent, bytes_left, MSG_NOSIGNAL);
-        if (ret == -1 && errno == EINTR) continue;
-        else if (ret == -1 && errno == EPIPE) return PIPE_ERROR;
+int send_msg(int socket, char *msg) {
+  int ret;
+  /*  int bytes_left = strlen(msg_to_send);
+  int bytes_sent = 0;
+  while (bytes_left > 0) {
+  ret = send(socket, msg_to_send + bytes_sent, bytes_left, MSG_NOSIGNAL);
+  if (ret == -1 && errno == EINTR) continue;
+  else if (ret == -1 && errno == EPIPE) return PIPE_ERROR;
 
-        bytes_left -= ret;
-        bytes_sent += ret;
-    }
-    return bytes_sent;
+  bytes_left -= ret;
+  bytes_sent += ret;
+}
+return bytes_sent;*/
+while (1) {
+  ret=send(socket, msg, MSG_SIZE, MSG_NOSIGNAL);
+  if (ret==-1 && errno == EINTR) continue;
+  else if (ret == -1 && errno == EPIPE) return PIPE_ERROR;
+  else break;
+}
+if (LOG) printf("\nSEND_MSG:\t[%s]\n", senzaslashenne(msg));
+
+return ret;
 }
 //MSG_WAITALL
 /*
- * Riceve un messaggio dalla socket desiderata e lo memorizza nel
- * buffer buff di dimensione massima buf_len bytes.
- *
- * La fine di un messaggio in entrata è contrassegnata dal carattere
- * speciale '\n'. Il valore restituito dal metodo è il numero di byte
- * letti ('\n' escluso), o -1 nel caso in cui il client ha chiuso la
- * connessione in modo inaspettato.
- */
+* Riceve un messaggio dalla socket desiderata e lo memorizza nel
+* buffer buff di dimensione massima buf_len bytes.
+*
+* La fine di un messaggio in entrata è contrassegnata dal carattere
+* speciale '\n'. Il valore restituito dal metodo è il numero di byte
+* letti ('\n' escluso), o -1 nel caso in cui il client ha chiuso la
+* connessione in modo inaspettato.
+*/
 size_t recv_msg(int socket, char *buff, size_t buf_len) {
-    int ret;
-    int bytes_read = 0;
-    memset(buff, 0, buf_len);
-    // messaggi più lunghi di buf_len bytes vengono troncati
-    while (bytes_read <= buf_len) {
-        ret = recv(socket, buff + bytes_read, 1, 0);
-        if (ret==-1 && errno==EWOULDBLOCK ) {
-          return TIMEOUT_EXPIRED;
-        }
-        if (ret == 0) return -1; // il client ha chiuso la socket
-        if (ret == -1 && errno == EINTR) continue;
-        if (ret == -1 && errno != EINTR)  {
-          printf("\nErrore nella lettura da socket\n");
-          return -1;
-        }
-        // controllo ultimo byte letto
-        if (buff[bytes_read] == '\n') break; // fine del messaggio: non incrementare bytes_read
+  int ret;
+  /*int bytes_read = 0;
+  memset(buff, 0, buf_len);
+  // messaggi più lunghi di buf_len bytes vengono troncati
+  while (bytes_read <= buf_len) {
+  ret = recv(socket, buff + bytes_read, 1, 0);
+  if (ret==-1 && errno==EWOULDBLOCK ) {
+  return TIMEOUT_EXPIRED;
+}
+if (ret == 0) return -1; // il client ha chiuso la socket
+if (ret == -1 && errno == EINTR) continue;
+if (ret == -1 && errno != EINTR)  {
+printf("\nErrore nella lettura da socket\n");
+return -1;
+}
+// controllo ultimo byte letto
+if (buff[bytes_read] == '\n') break; // fine del messaggio: non incrementare bytes_read
 
-        bytes_read++;
-    }
+bytes_read++;
+}
 
-    /* Quando un messaggio viene ricevuto correttamente, il carattere
-     * finale '\n' viene sostituito con un terminatore di stringa. */
-    buff[bytes_read] = '\0';
-    return bytes_read; // si noti che ora bytes_read == strlen(buff)
+// Quando un messaggio viene ricevuto correttamente, il carattere
+// finale '\n' viene sostituito con un terminatore di stringa.
+buff[bytes_read] = '\0';
+return bytes_read; // si noti che ora bytes_read == strlen(buff)*/
+
+while (1) {
+  memset(buff, 0, buf_len);
+  ret=recv(socket, buff, buf_len, 0 );
+  if (ret==0) {
+    printf("\nRET=0\n");
+  }
+  if (ret==-1 && errno==EINTR) continue;
+  else if (ret==-1 && errno==EWOULDBLOCK ) {
+    return TIMEOUT_EXPIRED;
+  }
+  else break;
+}
+if (LOG) printf("\nRECV_MSG:\t[%s]\n", senzaslashenne(buff));
+return ret;
 }
 
 int message_action(char* buff) {
@@ -122,9 +145,7 @@ int message_action(char* buff) {
 
 int recv_and_parse(int socket, char* buff, size_t buff_len) {
   int res;
-  do {
-    res=recv_msg(socket, buff, buff_len);
-  } while (res==0);
+  res=recv_msg(socket, buff, buff_len);
   if (res==TIMEOUT_EXPIRED) return TIMEOUT_EXPIRED;
   return message_action(buff);
 }
@@ -140,17 +161,17 @@ int send_and_parse(int socket, char* buff) {
 */
 
 typedef struct user_data_s {
-    int     socket;
-    char*    nickname;
-    int*     valido;
-    int     mode;
-    int     disponibile;
-    int socket_altroutente;
+  int     socket;
+  char*    nickname;
+  int*     valido;
+  int     mode;
+  int     disponibile;
+  int socket_altroutente;
 } user_data_t;
 
 typedef struct session_thread_args_s {
-    int socket;
-    struct sockaddr_in* address;
+  int socket;
+  struct sockaddr_in* address;
 } session_thread_args_t;
 
 
@@ -169,6 +190,7 @@ typedef struct{
 char* senzaslashenne(char* nome) {
   int count=0, len=strlen(nome);
   char* ris=(char*) malloc(sizeof(char)*strlen(nome));
+
   while (count<len) {
     if (nome[count]=='\n') ris[count]='\0';
     else ris[count]=nome[count];

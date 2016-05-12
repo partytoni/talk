@@ -44,6 +44,7 @@ void gestione_interrupt() {
 			exit(EXIT_SUCCESS);
 		}
 	}
+	printf("\nNumero massimo di tentativi raggiunto.\n");
 }
 
 void* chat_routine(void* arg) {
@@ -58,9 +59,8 @@ void* chat_routine(void* arg) {
 	int res;
 	char msg[MSG_SIZE];
 	while (1) {
-		do {
-			res=recv_msg(src, msg, MSG_SIZE);
-		} while (res==0);
+		res=recv_msg(src, msg, MSG_SIZE);
+
 		if (res==-1) {	//il client ha chiuso la socket
 			res=send_msg(dest,"#quit");
 			if (res == PIPE_ERROR ) {
@@ -423,13 +423,13 @@ void do_message_action(int res, int socket, char* msg, char* nickname) {
 
 void ricevi_modalita(int socket, char* msg, char* nickname, int* mode) {
   int res;
-	do{
-		res=recv_and_parse(socket, msg, MSG_SIZE);
-		if (res != NOT_A_COMMAND) do_message_action(res,socket,msg,nickname);
-	} while (res != NOT_A_COMMAND && res!=TIMEOUT_EXPIRED);
-
+	res=recv_msg(socket, msg, MSG_SIZE);
+	printf("RICEVUTO [ ");
 	int i;
-	if (res!=TIMEOUT_EXPIRED) *mode=atoi(msg);
+	for (i=0;i<MSG_SIZE;i++) {
+		printf("%d  ", (senzaslashenne(msg)[i]));
+	}
+	if (res!=TIMEOUT_EXPIRED && !check_exit(msg)) *mode=atoi(msg);
 	else{
 		send_msg(socket,"#shutdown");
 		*mode=2;
@@ -470,7 +470,7 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
       do_message_action(res, socket, msg, nickname);
       continue;
     }
-    altronickname=char2str(msg);
+    altronickname=senzaslashenne(char2str(msg));
 		printf("\n%s %s\n", nickname, altronickname);
     printf("\nIl client [%s] vuole collegarsi con [%s]", nickname, altronickname);
     if (strcmp(nickname, altronickname)==0) {
@@ -677,9 +677,8 @@ void do_message_action_admin(int res, int socket, char* msg) {
 
 	if (res==CANCEL) {
 		invia_lista_admin(socket, msg);
-		do {
-			res=recv_msg(socket, msg, MSG_SIZE); //nome da eliminare
-		} while (res==0);
+		res=recv_msg(socket, msg, MSG_SIZE); //nome da eliminare
+
 
 		if (res==TIMEOUT_EXPIRED){
 			send_msg(socket,"#shutdown");
