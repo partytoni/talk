@@ -31,6 +31,7 @@ int numero_disponibili(user_data_t users[], int dim);
 
 void gestione_interrupt() {
 	printf("\n[SERVER]\tTerminazione del server....\n");
+	if (LOG) exit(0);
 	char* psw;
 	int count=0;
 	while(count<MAX_ATTEMPTS){
@@ -85,7 +86,7 @@ void* chat_routine(void* arg) {
 			sem_post_EH(kill_sem, "chat_routine");
 			pthread_exit(EXIT_SUCCESS);
 		}
-		if (check_quit(msg) || check_exit(msg)) {
+		if (check_quit(msg) || check_exit(msg) ) {
 			printf("\nIl thread ha ricevuto %s. %sing chat...\n", msg, msg);
 			if (check_exit(msg)) close_connection(src);
 			sem_wait_EH(kill_sem, "chat_routine");
@@ -136,6 +137,7 @@ void* thread_connection(void* arg) {
 		*(users[socket].valido)=VALIDO;
 		users[socket].mode=NON_INIZIALIZZATO;
 		users[socket].disponibile=!DISPONIBILE;
+		users[socket].socket_altroutente=NON_INIZIALIZZATO;
 	  res=send_msg(socket, "y");
 		if (res == PIPE_ERROR ) {
 			close_connection(socket);
@@ -173,8 +175,11 @@ void* thread_connection(void* arg) {
 			sem_wait_EH(users_sem,"thread_connection");
 			chat_args arg_send={socket,users[indice_altroutente].socket};
 			chat_args arg_rcv={users[indice_altroutente].socket, socket};
+			users[socket].socket_altroutente=indice_altroutente;
+			users[indice_altroutente].socket_altroutente=socket;
 			sem_post_EH(users_sem,"thread_connection");
 			pthread_t send,rcv;
+
 			res=pthread_create(&send,NULL,chat_routine,(void*)&arg_send);
 			PTHREAD_ERROR_HELPER(res,"\nimpossibile creare thread send");
 			printf("\nCreata chat_routine con src: %d e dest: %d\n",socket, indice_altroutente);
@@ -206,6 +211,8 @@ void* thread_connection(void* arg) {
 			sem_wait_EH(users_sem,"thread_connection");
 			users[indice_altroutente].mode=NON_INIZIALIZZATO;
 			int check_valid=users[socket].valido;
+			users[socket].socket_altroutente=NON_INIZIALIZZATO;
+			users[indice_altroutente].socket_altroutente=NON_INIZIALIZZATO;
 			sem_post_EH(users_sem,"thread_connection");
 			if(!check_valid){
 				pthread_exit(EXIT_SUCCESS);
@@ -653,29 +660,36 @@ void do_message_action_admin(int res, int socket, char* msg) {
 		if (LOG) printf("\nL'admin vuole eliminare %s\n", msg);
 		char* nickname=senzaslashenne(msg);
 		sem_wait_EH(users_sem,"do_message_action_admin");
-		int indice_altroutente=-1, i;
+		int indice_utente=-1, i;
 		for (i=0;i<MAX_USERS;i++) {
 	    if (*(users[i].valido)==VALIDO && strlen(users[i].nickname)==strlen(msg) && strcmp(users[i].nickname, msg)==0) {
 				if (LOG) printf("\nHo trovato l'utente %s e la sua disponibilità è %d", users[i].nickname,users[i].disponibile);
-				indice_altroutente=i;
+				indice_utente=i;
 				break;//trovato il mascalzone
 			}
 	  }
 		sem_post_EH(users_sem,"do_message_action_admin");
-		if (indice_altroutente==-1) {
+		if (indice_utente==-1) {
 			printf("\nUtente non trovato.\n");
 			send_msg(socket, "n");
 		}
 		else {
 			printf("\nUtente trovato. Eliminato\n");
-			close_connection(indice_altroutente);
-			pthread_cancel(cancel_from_admin[indice_altroutente]);
+			send_msg(indice_utente, "#cancel");
+			send_msg(users[indice_utente].socket_altroutente, "#exit");
+			close_connection(indice_utente);
+			pthread_cancel(cancel_from_admin[indice_utente]);
 			send_msg(socket, "y");
 		}
 	}
 	if (res==SHUTDOWN){
 		printf("Server terminato da remoto....\n" );
-		//closeAll---
+		int i;
+		for (i=0;i<MAX_USERS;i++){
+			if( *(users[i].valido) ){
+				send_msg(i,"#shutdown");
+			}
+		}
 		fflush(stdout);
 		exit(0);
 	}

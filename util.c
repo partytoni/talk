@@ -141,6 +141,7 @@ typedef struct user_data_s {
     int*     valido;
     int     mode;
     int     disponibile;
+    int socket_altroutente;
 } user_data_t;
 
 typedef struct session_thread_args_s {
