@@ -39,6 +39,9 @@ void* recv_routine(void* arg){
 		if (res==0) continue;
 		if (res==-1) {
 			printf("\nIl client %s ha terminato la connessione. EXITING...\n", nickname);
+			sem_wait_EH(kill_sem,"recv_routine");
+			kill_thread=1;
+			sem_post_EH(kill_sem,"recv_routine");
 			pthread_exit(0);
 		}
 		if (check_quit(buff) || check_exit(buff) ) {
@@ -114,10 +117,11 @@ int main(int argc, char* argv[]) {
 		senzaslashenne(nickname);
 	}
 
-	else if (argc==7 || strcmp(argv[1],"-a")==0 || strcmp(argv[3],"-p")==0 || strcmp(argv[5],"-u")==0){
-		sprintf(porta, "%s",argv[2]);
-		sprintf(address,"%s",argv[4]);
-		sprintf(nickname, "%s",argv[6]);	}
+	else if (argc==7 && strcmp(argv[1],"-a")==0 && strcmp(argv[3],"-p")==0 && strcmp(argv[5],"-u")==0){
+		sprintf(porta, "%s",argv[4]);
+		sprintf(address,"%s",argv[2]);
+		sprintf(nickname, "%s",argv[6]);
+	}
 
 	else  {
 		printf("\nUsage: ./client -a <address> -p <port> -u <user>\n");

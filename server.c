@@ -107,6 +107,13 @@ void* thread_connection(void* arg) {
   char msg[MSG_SIZE];
   char* nickname;
   printf("\nThread spawned.\n");
+
+	if (LOG) printf("\nSetting timeout to desc socket %d \n",socket );
+	struct timeval timeout;
+  timeout.tv_sec = TIMEOUT_SERVER_SECS;
+  timeout.tv_usec = TIMEOUT_SERVER_MICROSECS;
+	setsockopt(socket,SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,sizeof(timeout));
+
   int res, i, count, ret;
   memset(msg, 0, MSG_SIZE);
   res=recv_msg(socket, msg, MSG_SIZE); //riceve nickname
@@ -186,8 +193,8 @@ void* thread_connection(void* arg) {
 			res=pthread_create(&rcv,NULL,chat_routine,(void*)&arg_rcv);
 			PTHREAD_ERROR_HELPER(res,"\nimpossibile creare thread rcv");
 			printf("\nCreata chat_routine con src: %d e dest: %d\n",indice_altroutente,socket);
-			/*pthread_join(send,NULL);
-			pthread_join(rcv,NULL);*/
+
+
 			while (1) {
 				sem_wait_EH(kill_sem, "thread_connection");
 				if (kill_thread[socket] && kill_thread[indice_altroutente]) {
@@ -415,15 +422,18 @@ void do_message_action(int res, int socket, char* msg, char* nickname) {
 }
 
 void ricevi_modalita(int socket, char* msg, char* nickname, int* mode) {
-  //recv_msg(socket, msg, 1);
   int res;
 	do{
 		res=recv_and_parse(socket, msg, MSG_SIZE);
 		if (res != NOT_A_COMMAND) do_message_action(res,socket,msg,nickname);
-	} while (res != NOT_A_COMMAND);
+	} while (res != NOT_A_COMMAND && res!=TIMEOUT_EXPIRED);
 
 	int i;
-  *mode=atoi(msg);
+	if (res!=TIMEOUT_EXPIRED) *mode=atoi(msg);
+	else{
+		send_msg(socket,"#shutdown");
+		*mode=2;
+	}
   printf("\nLa modalità di %s è %d\n", nickname, *mode);
   if (*mode==2) {
     close_connection(socket);
@@ -449,6 +459,13 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
 		indice_altroutente=-1;
     printf("\nIn attesa che il client %s invii il nome con cui si vuole collegare\n", nickname);
     res=recv_and_parse(socket, msg, MSG_SIZE); //riceve nome altroutente
+
+		if (res==TIMEOUT_EXPIRED){
+			send_msg(socket,"#shutdown");
+			close_connection(socket);
+			pthread_exit(0);
+		}
+
     if (res!=NOT_A_COMMAND) {
       do_message_action(res, socket, msg, nickname);
       continue;
@@ -499,6 +516,12 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname) {
 		}
     printf("\nIn attesa di responso da parte di [%s]\n", altronickname);
 		res=recv_msg(indice_altroutente, msg, MSG_SIZE);
+
+		if(res==TIMEOUT_EXPIRED){
+			res=send_msg(socket,"n");
+			close_connection(indice_altroutente);
+		}
+
 		printf("\nIl client %s ha risposto %s", altronickname, msg);
 		if (check_exit(msg)) {
 			res=send_msg(socket, "n");
@@ -657,6 +680,13 @@ void do_message_action_admin(int res, int socket, char* msg) {
 		do {
 			res=recv_msg(socket, msg, MSG_SIZE); //nome da eliminare
 		} while (res==0);
+
+		if (res==TIMEOUT_EXPIRED){
+			send_msg(socket,"#shutdown");
+			close_connection(socket);
+			pthread_exit(0);
+		}
+
 		if (LOG) printf("\nL'admin vuole eliminare %s\n", msg);
 		char* nickname=senzaslashenne(msg);
 		sem_wait_EH(users_sem,"do_message_action_admin");
@@ -698,9 +728,16 @@ void do_message_action_admin(int res, int socket, char* msg) {
 
 void gestione_admin(int socket) {
 	char msg[MSG_SIZE];
-	int count=0;
+	int count=0, res;
 	while (count<MAX_ATTEMPTS) {
-		recv_msg(socket, msg,MSG_SIZE);
+		res=recv_msg(socket, msg,MSG_SIZE);
+
+		if (res==TIMEOUT_EXPIRED){
+			send_msg(socket,"#shutdown");
+			close_connection(socket);
+			pthread_exit(0);
+		}
+
 		if (strlen(msg)==strlen(PASSWORD) && strcmp(msg, PASSWORD)==0) {
 			printf("\nPassword inserita: %s, Password corretta!\n", msg);
 			send_msg(socket, "y");
@@ -717,11 +754,11 @@ void gestione_admin(int socket) {
 		close(socket);
 		pthread_exit(0);
 	}
-	int res;
 	while (1) {
 		res=recv_and_parse(socket, msg, MSG_SIZE);
-		if (check_quit(msg) || check_exit(msg)) break;
+		if (check_quit(msg) || check_exit(msg) || res==TIMEOUT_EXPIRED) break;
 		do_message_action_admin(res, socket, msg);
 	}
+
 	pthread_exit(0);
 }

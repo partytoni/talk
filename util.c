@@ -30,6 +30,9 @@
 #define SHUTDOWN 6
 #define PASSWORD "lucascemo"
 #define MAX_ATTEMPTS 3
+#define TIMEOUT_EXPIRED -555
+#define TIMEOUT_SERVER_SECS 10
+#define TIMEOUT_SERVER_MICROSECS 0
 
 #ifdef DEBUG
   #define LOG 1
@@ -69,7 +72,7 @@ int send_msg(int socket, const char *msg) {
     }
     return bytes_sent;
 }
-
+//MSG_WAITALL
 /*
  * Riceve un messaggio dalla socket desiderata e lo memorizza nel
  * buffer buff di dimensione massima buf_len bytes.
@@ -86,7 +89,9 @@ size_t recv_msg(int socket, char *buff, size_t buf_len) {
     // messaggi più lunghi di buf_len bytes vengono troncati
     while (bytes_read <= buf_len) {
         ret = recv(socket, buff + bytes_read, 1, 0);
-
+        if (ret==-1 && errno==EWOULDBLOCK ) {
+          return TIMEOUT_EXPIRED;
+        }
         if (ret == 0) return -1; // il client ha chiuso la socket
         if (ret == -1 && errno == EINTR) continue;
         if (ret == -1 && errno != EINTR)  {
@@ -120,6 +125,7 @@ int recv_and_parse(int socket, char* buff, size_t buff_len) {
   do {
     res=recv_msg(socket, buff, buff_len);
   } while (res==0);
+  if (res==TIMEOUT_EXPIRED) return TIMEOUT_EXPIRED;
   return message_action(buff);
 }
 
