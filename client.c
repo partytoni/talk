@@ -20,12 +20,51 @@ sem_t kill_sem;
 int sock, kill_thread;
 
 
-void gestione_interrupt() {
+void sigquit(){
 	printf("\nTerminazione richiesta. Chiusura delle connessioni attive...\n");
 	send_msg(sock, "#exit");
 	close(sock);
 	exit(0);
 }
+
+void sigint(){
+	printf("\nTerminazione richiesta. Chiusura delle connessioni attive...\n");
+	send_msg(sock, "#exit");
+	close(sock);
+	exit(0);
+}
+
+void sigterm(){
+	printf("\nTerminazione richiesta. Chiusura delle connessioni attive...\n");
+	send_msg(sock, "#exit");
+	close(sock);
+	exit(0);
+}
+
+void sighup(){
+	send_msg(sock,"#exit");
+	close(sock);
+	exit(0);
+}
+
+static void gestione_interrupt(int signo) {
+	switch(signo){
+		case SIGQUIT:
+			sigquit();
+			break;
+		case SIGINT:
+			sigint();
+			break;
+		case SIGTERM:
+			sigterm();
+			break;
+		case SIGHUP:
+			sighup();
+			break;
+	}
+}
+
+
 
 void* recv_routine(void* arg){
 	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
@@ -112,7 +151,7 @@ int main(int argc, char* argv[]) {
 		sprintf(porta, "%s","9999");
 		sprintf(address,"%s",argv[2]);
 		do {
-			printf("\nInserire il nome utente: (non sono permessi nomi che iniziano per '#')" );
+			printf("\nInserire il nome utente: (non sono permessi nomi che iniziano per '#') " );
 			fgets(nickname,MSG_SIZE,stdin);
 		} while (check_buff(nickname, '#'));
 		senzaslashenne(nickname);
@@ -133,8 +172,13 @@ int main(int argc, char* argv[]) {
 
 	if (LOG) printf("\nUtente %s, porta %s\n", nickname, porta);
 
-	signal(SIGINT, gestione_interrupt);
-	signal(SIGQUIT,gestione_interrupt);
+	struct sigaction act;
+	memset (&act, 0, sizeof (act));
+	act.sa_handler = gestione_interrupt;
+	sigaction (SIGINT, &act, NULL);
+	sigaction(SIGQUIT, &act, NULL);
+	sigaction(SIGTERM, &act, NULL);
+	sigaction(SIGHUP, &act, NULL);
 	// we use network byte order
 	in_addr_t ip_addr;
 	unsigned short port_number_no;
@@ -211,7 +255,7 @@ int main(int argc, char* argv[]) {
 		if (mode==1) { //mode==1
 			int res;
 			while (1) {
-				printf("\nCon chi vuoi collegarti? #exit per uscire\n");
+				printf("\nCon chi vuoi collegarti? #help per avere piu info\n");
 				memset(buff, 0, MSG_SIZE);
 				fgets(buff, MSG_SIZE, stdin);
 
@@ -228,9 +272,9 @@ int main(int argc, char* argv[]) {
 				}
 				altronickname=senzaslashenne(char2str(buff));
 				printf("\nIn attesa di risposta da parte di %s\n", altronickname);
-				recv_msg(sock, buff, MSG_SIZE);
+				res=recv_msg(sock, buff, MSG_SIZE);
 
-				if (check_shutdown(buff) || check_cancel(buff) ){
+				if ( check_shutdown(buff) || check_cancel(buff) ){
 					if (check_cancel(buff) ) printf("\nSei stato cancellato dall'admin....exiting...\n");
 					else printf("\nSorry...il server non è al momento disponibile\n");
 					exit(0);
@@ -267,8 +311,11 @@ int main(int argc, char* argv[]) {
 		while (mode==0 && accepted==0) {
 			printf("\nSei in attesa di richiesta di chat\n");
 			res=recv_msg(sock, buff, MSG_SIZE); //legge nome che vuole collegarsi con lui
-			if (res==0) exit(0);
-			if (LOG) printf("RES: %d\n",res );
+			/*if (res==0){
+				printf("Il server non è disponibileal momento....exit\n");
+				exit(0);
+			}*/
+			if (LOG) printf("RES: %d ,errno:%d errore:%s\n",res,errno,strerror(errno) );
 			if (check_shutdown(buff) || check_cancel(buff) ){
 				if (check_cancel(buff) ) printf("\nSei stato cancellato dall'admin....exiting...\n" );
 				else printf("\nSorry...il server non è al momento disponibile\n");
@@ -342,7 +389,6 @@ void do_message_action(int res, int socket, char* msg) {
 void ricevi_lista(int sock, char* buff) {
 	int res;
 	res=recv_msg(sock, buff, MSG_SIZE);
-
 	if (check_shutdown(buff) || check_cancel(buff) ){
 		if (check_cancel(buff) ) printf("\nSei stato cancellato dall'admin....exiting...\n" );
 		else printf("\nSorry...il server non è al momento disponibile\n");
@@ -358,7 +404,7 @@ void ricevi_lista(int sock, char* buff) {
 		res=recv_msg(sock, buff, MSG_SIZE);
 
 
-		if (check_shutdown(buff) || check_cancel(buff) ){
+		if (check_shutdown(buff) || check_cancel(buff)  ){
 			if (check_cancel(buff) ) printf("\nSei stato cancellato dall'admin....exiting...\n" );
 			else printf("\nSorry...il server non è al momento disponibile\n");
 			exit(0);
@@ -412,16 +458,7 @@ void do_message_action_admin(int res, int socket, char* msg) {
 		close(socket);
 		exit(0);
 	}
-	if (res==CANCEL) {
-		ricevi_lista(sock, msg);
-		printf("\nChi vuoi eliminare? ");
-		memset(msg, 0, MSG_SIZE);
-		fgets(msg, MSG_SIZE, stdin);
-		send_msg(socket, msg);
-		recv_msg(socket, msg, MSG_SIZE);
-		if (check_buff(msg, 'n')) printf("\nUtente non esistente.\n");
-		if (check_buff(msg, 'y')) printf("\nUtente eliminato.\n");
-	}
+
 	if(res == SHUTDOWN){
 		printf("Hai terminato il server \n");
 		exit(0);

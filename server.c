@@ -29,7 +29,8 @@ void print_utenti(user_data_t users[], int dim);
 int numero_disponibili(user_data_t users[], int dim);
 /*-----------------------*/
 
-void gestione_interrupt() {
+
+void sigquit(){
 	printf("\n[SERVER]\tTerminazione del server....\n");
 	char* psw;
 	int count=0;
@@ -51,6 +52,68 @@ void gestione_interrupt() {
 		}
 	}
 	printf("\nNumero massimo di tentativi raggiunto.\n");
+}
+
+void sigint(){
+	printf("\n[SERVER]\tTerminazione del server....\n");
+	char* psw;
+	int count=0;
+	while(count<MAX_ATTEMPTS){
+		count++;
+		printf("Attempt: %d",count);
+		psw=getpass("\nInserisci Password: ");
+		if(strlen(psw)==strlen(PASSWORD) && strcmp(psw, PASSWORD)==0) {
+			//close all
+			printf("Server terminato da remoto....\n" );
+			int i;
+			for (i=0;i<MAX_USERS;i++){
+				if( *(users[i].valido) ){
+					send_msg(i,"#shutdown");
+				}
+			}
+			fflush(stdout);
+			exit(0);
+		}
+	}
+	printf("\nNumero massimo di tentativi raggiunto.\n");
+}
+
+void sigterm(){
+	int i;
+	for(i=0;i<MAX_USERS;i++){
+		if(*(users[i].valido)== VALIDO ){
+			send_msg(i,"#shutdown");
+		}
+	}
+	fflush(stdout);
+}
+
+void sighup(){
+	int i;
+	for(i=0;i<MAX_USERS;i++){
+		if(*(users[i].valido)== VALIDO ){
+			send_msg(i,"#shutdown");
+		}
+	}
+	fflush(stdout);
+	exit(0);
+}
+
+static void gestione_interrupt(int signo) {
+	switch(signo){
+		case SIGQUIT:
+			sigquit();
+			break;
+		case SIGINT:
+			sigint();
+			break;
+			case SIGTERM:
+			sigterm();
+			break;
+		case SIGHUP:
+			sighup();
+			break;
+	}
 }
 
 void* chat_routine(void* arg) {
@@ -75,7 +138,7 @@ void* chat_routine(void* arg) {
 			sem_post_EH(kill_sem, "chat_routine");
 			pthread_exit(0);
 		}
-		if (res==-1) {	//il client ha chiuso la socket
+		if (res==-1 ) {	//il client ha chiuso la socket
 			res=send_msg(dest,"#quit");
 			if (res == PIPE_ERROR ) {
 				close_connection(dest);
@@ -271,7 +334,7 @@ void* thread_connection(void* arg) {
 					//sem_wait_EH
 					sem_wait_EH(receive_sem, "close_connection");
 					if (receive_flag[socket]==0) {
-						recv_msg(socket, msg, MSG_SIZE);
+						res=recv_msg(socket, msg, MSG_SIZE);
 						if (check_exit(msg)) {
 							printf("\nIl thread ha ricevuto #exit.\n");
 							close_connection(socket);
@@ -389,9 +452,17 @@ int main(int argc, char* argv[]) {
 
     printf("\nServer lanciato sulla porta %s\n", port);
     int ret;
+		struct sigaction act;
+		memset (&act, 0, sizeof (act));
+		act.sa_handler = gestione_interrupt;
+    sigaction (SIGINT, &act, NULL);
+    sigaction(SIGQUIT, &act, NULL);
+    sigaction(SIGTERM, &act, NULL);
+    sigaction(SIGHUP, &act, NULL);
 
-    signal(SIGINT, gestione_interrupt);
-    signal(SIGQUIT, gestione_interrupt);
+    //signal(SIGINT, gestione_interrupt);
+    //signal(SIGQUIT, gestione_interrupt);
+
 
 
 

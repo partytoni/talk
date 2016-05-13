@@ -42,10 +42,10 @@
 #endif
 
 #define GENERIC_ERROR_HELPER(cond, errCode, msg) do {               \
-  if (cond) {                                                 \
-    fprintf(stderr, "%s: %s\n", msg, strerror(errCode));    \
-    exit(EXIT_FAILURE);                                     \
-  }                                                           \
+  if (cond) {                                                       \
+    fprintf(stderr, "%s: %s\n", msg, strerror(errCode));            \
+    exit(EXIT_FAILURE);                                             \
+  }                                                                 \
 } while(0)
 
 #define ERROR_HELPER(ret, msg)          GENERIC_ERROR_HELPER((ret < 0), errno, msg)
@@ -60,78 +60,30 @@ char* senzaslashenne(char* nome);
 
 int send_msg(int socket, char *msg) {
   int ret;
-  /*  int bytes_left = strlen(msg_to_send);
-  int bytes_sent = 0;
-  while (bytes_left > 0) {
-  ret = send(socket, msg_to_send + bytes_sent, bytes_left, MSG_NOSIGNAL);
-  if (ret == -1 && errno == EINTR) continue;
-  else if (ret == -1 && errno == EPIPE) return PIPE_ERROR;
+  while (1) {
+    ret=send(socket, msg, MSG_SIZE, MSG_NOSIGNAL);
+    if (ret==-1 && errno == EINTR) continue;
+    else if (ret == -1 && errno == EPIPE) return PIPE_ERROR;
+    else break;
+  }
+  if (LOG) printf("\nSEND_MSG:\t[%s]\n", senzaslashenne(msg));
 
-  bytes_left -= ret;
-  bytes_sent += ret;
-}
-return bytes_sent;*/
-while (1) {
-  ret=send(socket, msg, MSG_SIZE, MSG_NOSIGNAL);
-  if (ret==-1 && errno == EINTR) continue;
-  else if (ret == -1 && errno == EPIPE) return PIPE_ERROR;
-  else break;
-}
-if (LOG) printf("\nSEND_MSG:\t[%s]\n", senzaslashenne(msg));
-
-return ret;
+  return ret;
 }
 //MSG_WAITALL
-/*
-* Riceve un messaggio dalla socket desiderata e lo memorizza nel
-* buffer buff di dimensione massima buf_len bytes.
-*
-* La fine di un messaggio in entrata è contrassegnata dal carattere
-* speciale '\n'. Il valore restituito dal metodo è il numero di byte
-* letti ('\n' escluso), o -1 nel caso in cui il client ha chiuso la
-* connessione in modo inaspettato.
-*/
 size_t recv_msg(int socket, char *buff, size_t buf_len) {
   int ret;
-  /*int bytes_read = 0;
-  memset(buff, 0, buf_len);
-  // messaggi più lunghi di buf_len bytes vengono troncati
-  while (bytes_read <= buf_len) {
-  ret = recv(socket, buff + bytes_read, 1, 0);
-  if (ret==-1 && errno==EWOULDBLOCK ) {
-  return TIMEOUT_EXPIRED;
-}
-if (ret == 0) return -1; // il client ha chiuso la socket
-if (ret == -1 && errno == EINTR) continue;
-if (ret == -1 && errno != EINTR)  {
-printf("\nErrore nella lettura da socket\n");
-return -1;
-}
-// controllo ultimo byte letto
-if (buff[bytes_read] == '\n') break; // fine del messaggio: non incrementare bytes_read
-
-bytes_read++;
-}
-
-// Quando un messaggio viene ricevuto correttamente, il carattere
-// finale '\n' viene sostituito con un terminatore di stringa.
-buff[bytes_read] = '\0';
-return bytes_read; // si noti che ora bytes_read == strlen(buff)*/
-
-while (1) {
-  memset(buff, 0, buf_len);
-  ret=recv(socket, buff, buf_len, 0 );
-  if (ret==0) {
-    printf("\nRET=0\n");
+  while (1) {
+    memset(buff, 0, buf_len);
+    ret=recv(socket, buff, buf_len, 0 );
+    if (ret==-1 && errno==EINTR) continue;
+    else if (ret==-1 && errno==EWOULDBLOCK ) {
+      return TIMEOUT_EXPIRED;
+    }
+    else break;
   }
-  if (ret==-1 && errno==EINTR) continue;
-  else if (ret==-1 && errno==EWOULDBLOCK ) {
-    return TIMEOUT_EXPIRED;
-  }
-  else break;
-}
-if (LOG) printf("\nRECV_MSG:\t[%s]\n", senzaslashenne(buff));
-return ret;
+  if (LOG) printf("\nRECV_MSG:\t[%s]\n", senzaslashenne(buff));
+  return ret;
 }
 
 int message_action(char* buff) {
@@ -157,9 +109,8 @@ int send_and_parse(int socket, char* buff) {
   return message_action(buff);
 
 }
-/*
-*******************************************************************
-*/
+
+
 
 typedef struct user_data_s {
   int     socket;
