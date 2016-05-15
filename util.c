@@ -6,6 +6,8 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <errno.h>
+#include "sha1.h"
+
 
 #define CODA 3
 #define MAX_CIFRE_UTENTI 3
@@ -28,7 +30,7 @@
 #define EXIT 4
 #define CANCEL 5
 #define SHUTDOWN 6
-#define PASSWORD "lucascemo"
+#define PASSWORD "DED2D0BC 4F92FD91 58DDE711 CE2E8019 5FF5326E"
 #define MAX_ATTEMPTS 3
 #define TIMEOUT_EXPIRED -555
 #define TIMEOUT_SERVER_SECS 60
@@ -109,7 +111,6 @@ int send_and_parse(int socket, char* buff) {
   return message_action(buff);
 
 }
-
 
 
 typedef struct user_data_s {

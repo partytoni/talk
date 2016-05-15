@@ -1,7 +1,7 @@
 CC     = gcc
 CFLAGS = -O3
 NOWFLAG= -w
-TFLAGS = -lpthread
+TFLAGS = -lpthread sha1.c
 
 all: client server
 

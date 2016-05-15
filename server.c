@@ -36,8 +36,19 @@ void sigquit(){
 	int count=0;
 	while(count<MAX_ATTEMPTS){
 		count++;
-		printf("Attempt: %d",count);
+		printf("Attempt: %d \n",count);
 		psw=getpass("\nInserisci Password: ");
+		SHA1Context sha;
+		SHA1Reset(&sha);
+		SHA1Input(&sha,psw,strlen(psw));
+		SHA1Result(&sha);
+		if (LOG) printf("hash calcolato del messaggio %s ricevuto: \n",psw );
+		int i;
+		for (i = 0; i < 5; i++) {
+			if (LOG)  printf("%X ",sha.Message_Digest[i] );
+		}
+		sprintf(psw,"%X %X %X %X %X",sha.Message_Digest[0],sha.Message_Digest[1],sha.Message_Digest[2],sha.Message_Digest[3],sha.Message_Digest[4]);
+
 		if(strlen(psw)==strlen(PASSWORD) && strcmp(psw, PASSWORD)==0) {
 			//close all
 			printf("Server terminato da remoto....\n" );
@@ -60,8 +71,19 @@ void sigint(){
 	int count=0;
 	while(count<MAX_ATTEMPTS){
 		count++;
-		printf("Attempt: %d",count);
+		printf("Attempt: %d \n",count);
 		psw=getpass("\nInserisci Password: ");
+		SHA1Context sha;
+		SHA1Reset(&sha);
+		SHA1Input(&sha,psw,strlen(psw));
+		SHA1Result(&sha);
+		if (LOG) printf("hash calcolato del messaggio %s ricevuto: \n",psw );
+		int i;
+		for (i = 0; i < 5; i++) {
+			if (LOG)  printf("%X ",sha.Message_Digest[i] );
+		}
+		sprintf(psw,"%X %X %X %X %X",sha.Message_Digest[0],sha.Message_Digest[1],sha.Message_Digest[2],sha.Message_Digest[3],sha.Message_Digest[4]);
+
 		if(strlen(psw)==strlen(PASSWORD) && strcmp(psw, PASSWORD)==0) {
 			//close all
 			printf("Server terminato da remoto....\n" );
@@ -755,42 +777,6 @@ void do_message_action_admin(int res, int socket, char* msg) {
 		//koffing
 	}
 
-	if (res==CANCEL) {
-		invia_lista_admin(socket, msg);
-		res=recv_msg(socket, msg, MSG_SIZE); //nome da eliminare
-
-
-		if (res==TIMEOUT_EXPIRED){
-			send_msg(socket,"#shutdown");
-			close_connection(socket);
-			pthread_exit(0);
-		}
-
-		if (LOG) printf("\nL'admin vuole eliminare %s\n", msg);
-		char* nickname=senzaslashenne(msg);
-		sem_wait_EH(users_sem,"do_message_action_admin");
-		int indice_utente=-1, i;
-		for (i=0;i<MAX_USERS;i++) {
-	    if (*(users[i].valido)==VALIDO && strlen(users[i].nickname)==strlen(nickname) && strcmp(users[i].nickname, nickname)==0) {
-				if (LOG) printf("\nHo trovato l'utente %s e la sua disponibilità è %d", users[i].nickname,users[i].disponibile);
-				indice_utente=i;
-				break;//trovato il mascalzone
-			}
-	  }
-		sem_post_EH(users_sem,"do_message_action_admin");
-		if (indice_utente==-1) {
-			printf("\nUtente non trovato.\n");
-			send_msg(socket, "n");
-		}
-		else {
-			printf("\nUtente trovato. Eliminato\n");
-			send_msg(indice_utente, "#cancel");
-			if (users[indice_utente].socket_altroutente!=NON_INIZIALIZZATO) send_msg(users[indice_utente].socket_altroutente, "#exit");
-			close_connection(indice_utente);
-			pthread_cancel(cancel_from_admin[indice_utente]);
-			send_msg(socket, "y");
-		}
-	}
 	if (res==SHUTDOWN){
 		printf("Server terminato da remoto....\n" );
 		int i;
@@ -808,6 +794,7 @@ void do_message_action_admin(int res, int socket, char* msg) {
 void gestione_admin(int socket) {
 	char msg[MSG_SIZE];
 	int count=0, res;
+
 	while (count<MAX_ATTEMPTS) {
 		res=recv_msg(socket, msg,MSG_SIZE);
 
@@ -816,6 +803,17 @@ void gestione_admin(int socket) {
 			close_connection(socket);
 			pthread_exit(0);
 		}
+
+		SHA1Context sha;
+		SHA1Reset(&sha);
+		SHA1Input(&sha,msg,strlen(msg));
+		SHA1Result(&sha);
+		if (LOG) printf("hash calcolato del messaggio %s ricevuto: \n",msg );
+		int i;
+		for (i = 0; i < 5; i++) {
+			if (LOG)  printf("%X ",sha.Message_Digest[i] );
+		}
+		sprintf(msg,"%X %X %X %X %X",sha.Message_Digest[0],sha.Message_Digest[1],sha.Message_Digest[2],sha.Message_Digest[3],sha.Message_Digest[4]);
 
 		if (strlen(msg)==strlen(PASSWORD) && strcmp(msg, PASSWORD)==0) {
 			printf("\nPassword inserita: %s, Password corretta!\n", msg);
