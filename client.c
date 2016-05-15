@@ -1,4 +1,4 @@
-#include <errno.h>
+/*#include <errno.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -9,16 +9,13 @@
 #include <arpa/inet.h>
 #include <semaphore.h>
 #include <signal.h>
-#include <termios.h>
+#include <termios.h>*/
 #include "util.c"
-
-/* DICHIARAZIONI FUNZIONI */
-void ricevi_lista(int sock, char* buff);
-void do_message_action(int res, int socket, char* msg);
-/*-----------------------*/
+#include "client.h"
+/*
 sem_t kill_sem;
 int sock, kill_thread;
-
+*/
 
 void sigquit(){
 	printf("\nTerminazione richiesta. Chiusura delle connessioni attive...\n");
@@ -63,7 +60,6 @@ static void gestione_interrupt(int signo) {
 			break;
 	}
 }
-
 
 
 void* recv_routine(void* arg){
@@ -270,7 +266,7 @@ int main(int argc, char* argv[]) {
 				if (strlen(buff)==1) sprintf(buff, "%s", nickname);
 				res=send_and_parse(sock, buff);
 				if (res!=NOT_A_COMMAND) {
-					do_message_action(res, sock, buff);
+					do_message_action(res, sock, buff,nickname);
 					continue;
 				}
 				altronickname=senzaslashenne(char2str(buff));
@@ -362,19 +358,28 @@ int main(int argc, char* argv[]) {
 	exit(EXIT_SUCCESS);
 }
 
-void do_message_action(int res, int socket, char* msg) {
+void do_message_action(int res, int socket, char* msg,char* nickname) {
 	if (res==LIST) {
+		if (strlen(nickname)==strlen("admin") && strcmp(nickname,"admin")==0) printf("\nADMIN: Ricevo la lista...\n");
 		ricevi_lista(socket, msg);
 	}
 
 	if (res==HELP) {
 		print_SOS();
+		if (strlen(nickname)==strlen("admin") && strcmp(nickname,"admin")==0 ) printf("\n---- #shutdown to close server and application\n" );
 	}
 	if (res==EXIT){
 		printf("\nHai deciso di voler uscire. \n");
 		close(socket);
 		exit(0);
 	}
+	if (res==SHUTDOWN){
+		if (strlen(nickname)==strlen("admin") && strcmp(nickname,"admin")==0 ){
+			printf("Hai terminato il server B)\n");
+			exit(0);
+		}
+	}
+
 }
 
 
@@ -439,39 +444,6 @@ void sem_wait_EH(sem_t sem, char* scope){
 	ERROR_HELPER(ret, msg);
 }
 
-void do_message_action_admin(int res, int socket, char* msg) {
-	if (res==LIST) {
-		if (LOG) printf("\nADMIN: Ricevo la lista...\n");
-		ricevi_lista(socket, msg);
-	}
-
-	if (res==HELP) {
-		char* welcome="\n\nHi welcome to talk application, type #command:";
-		char* quit="\n---- #quit to leave the current chat (if opened)";
-		char* help="\n---- #help to ask an SOS";
-		char* list="\n---- #list to refresh user list";
-		char* _exit="\n---- #exit to leave your awesome application\n";
-		char* shutdown="\n---- #shutdown to shutdown the server\n";
-		//char* cancel="\n---- #cancel to close the connection with an user\n";
-		char* SOS[]={welcome,quit,help,list, _exit, shutdown};
-		int i=0;
-		while(i<6){
-			if(LOG) printf("%s",SOS[i]);
-			i++;
-		}
-	}
-	if (res==EXIT || res==QUIT){
-		printf("\nHai deciso di voler uscire. \n");
-		close(socket);
-		exit(0);
-	}
-
-	if(res == SHUTDOWN){
-		printf("Hai terminato il server \n");
-		exit(0);
-	}
-}
-
 void gestione_admin(int socket) {
 	char msg[MSG_SIZE];
 	char* psw;
@@ -505,7 +477,7 @@ void gestione_admin(int socket) {
 		fgets(msg, MSG_SIZE, stdin);
 		res=send_and_parse(socket, msg);
 		if (check_quit(msg) || check_exit(msg)) break;
-		do_message_action_admin(res, socket, msg);
+		do_message_action(res, socket, msg,"admin");
 	}
 	exit(0);
 }

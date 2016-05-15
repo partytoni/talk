@@ -25,7 +25,6 @@ int routine_inoltra_richiesta(int socket, char* msg, char* nickname);
 void invia_lista(int socket, char* msg);
 void close_connection(int socket);
 void print_utenti(user_data_t users[], int dim);
-void print_utenti(user_data_t users[], int dim);
 int numero_disponibili(user_data_t users[], int dim);
 /*-----------------------*/
 
@@ -37,18 +36,7 @@ void sigquit(){
 	while(count<MAX_ATTEMPTS){
 		count++;
 		printf("Attempt: %d \n",count);
-		psw=getpass("\nInserisci Password: ");
-		SHA1Context sha;
-		SHA1Reset(&sha);
-		SHA1Input(&sha,psw,strlen(psw));
-		SHA1Result(&sha);
-		if (LOG) printf("hash calcolato del messaggio %s ricevuto: \n",psw );
-		int i;
-		for (i = 0; i < 5; i++) {
-			if (LOG)  printf("%X ",sha.Message_Digest[i] );
-		}
-		sprintf(psw,"%X %X %X %X %X",sha.Message_Digest[0],sha.Message_Digest[1],sha.Message_Digest[2],sha.Message_Digest[3],sha.Message_Digest[4]);
-
+		psw=crypt(psw);
 		if(strlen(psw)==strlen(PASSWORD) && strcmp(psw, PASSWORD)==0) {
 			//close all
 			printf("Server terminato da remoto....\n" );
@@ -73,17 +61,7 @@ void sigint(){
 		count++;
 		printf("Attempt: %d \n",count);
 		psw=getpass("\nInserisci Password: ");
-		SHA1Context sha;
-		SHA1Reset(&sha);
-		SHA1Input(&sha,psw,strlen(psw));
-		SHA1Result(&sha);
-		if (LOG) printf("hash calcolato del messaggio %s ricevuto: \n",psw );
-		int i;
-		for (i = 0; i < 5; i++) {
-			if (LOG)  printf("%X ",sha.Message_Digest[i] );
-		}
-		sprintf(psw,"%X %X %X %X %X",sha.Message_Digest[0],sha.Message_Digest[1],sha.Message_Digest[2],sha.Message_Digest[3],sha.Message_Digest[4]);
-
+		psw=crypt(psw);
 		if(strlen(psw)==strlen(PASSWORD) && strcmp(psw, PASSWORD)==0) {
 			//close all
 			printf("Server terminato da remoto....\n" );
@@ -243,7 +221,6 @@ void* thread_connection(void* arg) {
 		*(users[socket].valido)=VALIDO;
 		users[socket].mode=NON_INIZIALIZZATO;
 		users[socket].disponibile=!DISPONIBILE;
-		users[socket].socket_altroutente=NON_INIZIALIZZATO;
 	  res=send_msg(socket, "y");
 		if (res == PIPE_ERROR ) {
 			close_connection(socket);
@@ -281,8 +258,6 @@ void* thread_connection(void* arg) {
 			sem_wait_EH(users_sem,"thread_connection");
 			chat_args arg_send={socket,users[indice_altroutente].socket};
 			chat_args arg_rcv={users[indice_altroutente].socket, socket};
-			users[socket].socket_altroutente=indice_altroutente;
-			users[indice_altroutente].socket_altroutente=socket;
 			sem_post_EH(users_sem,"thread_connection");
 			pthread_t send,rcv;
 
@@ -317,8 +292,6 @@ void* thread_connection(void* arg) {
 			sem_wait_EH(users_sem,"thread_connection");
 			users[indice_altroutente].mode=NON_INIZIALIZZATO;
 			int check_valid=users[socket].valido;
-			users[socket].socket_altroutente=NON_INIZIALIZZATO;
-			users[indice_altroutente].socket_altroutente=NON_INIZIALIZZATO;
 			sem_post_EH(users_sem,"thread_connection");
 			if(!check_valid){
 				pthread_exit(EXIT_SUCCESS);
@@ -520,12 +493,26 @@ void do_message_action(int res, int socket, char* msg, char* nickname) {
   }
 
   if (res==LIST) {
-    invia_lista(socket, msg);
+		if( strlen(nickname)==strlen("admin") && strcmp(nickname,"admin")==0 ) invia_lista_admin(socket,msg);
+		else  invia_lista(socket, msg);
   }
 
 	if (res==HELP) {
 		//koffing
 	}
+	if (res==SHUTDOWN) {
+		if( strlen(nickname)==strlen("admin") && strcmp(nickname,"admin")==0 ){
+			printf("Server terminato da remoto....\n" );
+			int i;
+			for (i=0;i<MAX_USERS;i++){
+				if( *(users[i].valido) ){
+					send_msg(i,"#shutdown");
+				}
+			}
+			fflush(stdout);
+			exit(0);
+		}
+  }
 }
 
 void ricevi_modalita(int socket, char* msg, char* nickname, int* mode) {
@@ -761,40 +748,9 @@ void invia_lista_admin(int socket, char* msg) {
   }
 }
 
-
-void do_message_action_admin(int res, int socket, char* msg) {
-  if (res==QUIT || res==EXIT) {
-    printf("\nL'admin ha deciso di voler uscire\n");
-		if (res==EXIT) close_connection(socket);
-    pthread_exit(0);
-  }
-
-  if (res==LIST) {
-    invia_lista_admin(socket, msg);
-  }
-
-	if (res==HELP) {
-		//koffing
-	}
-
-	if (res==SHUTDOWN){
-		printf("Server terminato da remoto....\n" );
-		int i;
-		for (i=0;i<MAX_USERS;i++){
-			if( *(users[i].valido) ){
-				send_msg(i,"#shutdown");
-			}
-		}
-		fflush(stdout);
-		exit(0);
-	}
-}
-
-
 void gestione_admin(int socket) {
-	char msg[MSG_SIZE];
+	char *msg=malloc(MSG_SIZE*sizeof(char));
 	int count=0, res;
-
 	while (count<MAX_ATTEMPTS) {
 		res=recv_msg(socket, msg,MSG_SIZE);
 
@@ -803,18 +759,7 @@ void gestione_admin(int socket) {
 			close_connection(socket);
 			pthread_exit(0);
 		}
-
-		SHA1Context sha;
-		SHA1Reset(&sha);
-		SHA1Input(&sha,msg,strlen(msg));
-		SHA1Result(&sha);
-		if (LOG) printf("hash calcolato del messaggio %s ricevuto: \n",msg );
-		int i;
-		for (i = 0; i < 5; i++) {
-			if (LOG)  printf("%X ",sha.Message_Digest[i] );
-		}
-		sprintf(msg,"%X %X %X %X %X",sha.Message_Digest[0],sha.Message_Digest[1],sha.Message_Digest[2],sha.Message_Digest[3],sha.Message_Digest[4]);
-
+		msg=crypt(msg);
 		if (strlen(msg)==strlen(PASSWORD) && strcmp(msg, PASSWORD)==0) {
 			printf("\nPassword inserita: %s, Password corretta!\n", msg);
 			send_msg(socket, "y");
@@ -834,7 +779,7 @@ void gestione_admin(int socket) {
 	while (1) {
 		res=recv_and_parse(socket, msg, MSG_SIZE);
 		if (check_quit(msg) || check_exit(msg) || res==TIMEOUT_EXPIRED) break;
-		do_message_action_admin(res, socket, msg);
+		do_message_action(res, socket, msg,"admin");
 	}
 
 	pthread_exit(0);
