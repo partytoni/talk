@@ -1,32 +1,5 @@
-#include <errno.h>
-#include <pthread.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <semaphore.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <signal.h>
-#include <poll.h>
 #include "util.c"
-
-user_data_t users[MAX_USERS];
-sem_t users_sem,kill_sem, receive_sem;
-int kill_thread[MAX_USERS]={0};
-int receive_flag[MAX_USERS]={0};
-pthread_t cancel_from_admin[MAX_USERS];
-
-/* DICHIARAZIONI FUNZIONI */
-void do_message_action(int res, int socket, char* buff, char* nickname);
-void ricevi_modalita(int socket, char* msg, char* nickname, int* mode);
-int routine_inoltra_richiesta(int socket, char* msg, char* nickname);
-void invia_lista(int socket, char* msg);
-void close_connection(int socket);
-void print_utenti(user_data_t users[], int dim);
-int numero_disponibili(user_data_t users[], int dim);
-/*-----------------------*/
+#include "server.h"
 
 
 void sigquit(){
@@ -99,6 +72,18 @@ void sighup(){
 	exit(0);
 }
 
+void sigsegfault(){
+	int i;
+	printf("\nSEGMENTATION FAULT OCCURRED!....shutting down application\n" );
+	for(i=0;i<MAX_USERS;i++){
+		if(*(users[i].valido)== VALIDO ){
+			send_msg(i,"#shutdown");
+		}
+	}
+	fflush(stdout);
+	exit(0);
+}
+
 static void gestione_interrupt(int signo) {
 	switch(signo){
 		case SIGQUIT:
@@ -112,6 +97,9 @@ static void gestione_interrupt(int signo) {
 			break;
 		case SIGHUP:
 			sighup();
+			break;
+		case SIGSEGV:
+			sigsegfault();
 			break;
 	}
 }
@@ -454,6 +442,7 @@ int main(int argc, char* argv[]) {
     sigaction(SIGQUIT, &act, NULL);
     sigaction(SIGTERM, &act, NULL);
     sigaction(SIGHUP, &act, NULL);
+    sigaction(SIGSEGV, &act, NULL);
 
     //signal(SIGINT, gestione_interrupt);
     //signal(SIGQUIT, gestione_interrupt);

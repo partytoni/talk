@@ -1,21 +1,6 @@
-/*#include <errno.h>
-#include <pthread.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <semaphore.h>
-#include <signal.h>
-#include <termios.h>*/
 #include "util.c"
 #include "client.h"
-/*
-sem_t kill_sem;
-int sock, kill_thread;
-*/
+
 
 void sigquit(){
 	printf("\nTerminazione richiesta. Chiusura delle connessioni attive...\n");
@@ -44,6 +29,12 @@ void sighup(){
 	exit(0);
 }
 
+void sigsegfault(){
+	send_msg(sock,"#exit");
+	close(sock);
+	exit(0);
+}
+
 static void gestione_interrupt(int signo) {
 	switch(signo){
 		case SIGQUIT:
@@ -57,6 +48,9 @@ static void gestione_interrupt(int signo) {
 			break;
 		case SIGHUP:
 			sighup();
+			break;
+		case SIGSEGV:
+			sigsegfault();
 			break;
 	}
 }
@@ -178,6 +172,7 @@ int main(int argc, char* argv[]) {
 	sigaction(SIGQUIT, &act, NULL);
 	sigaction(SIGTERM, &act, NULL);
 	sigaction(SIGHUP, &act, NULL);
+	sigaction(SIGSEGV, &act, NULL);
 	// we use network byte order
 	in_addr_t ip_addr;
 	unsigned short port_number_no;

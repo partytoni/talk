@@ -14,7 +14,7 @@ int send_msg(int socket, char *msg) {
 
   return ret;
 }
-//MSG_WAITALL
+
 size_t recv_msg(int socket, char *buff, size_t buf_len) {
   int ret;
   while (1) {

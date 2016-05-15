@@ -21,6 +21,7 @@ void sigquit();
 void sigint();
 void sigterm();
 void sighup();
+void sigsegfault();
 static void gestione_interrupt(int signo);
 void* recv_routine(void* arg);
 void* send_routine(void* arg);

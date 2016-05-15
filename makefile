@@ -34,4 +34,4 @@ server_debug.o: server.c
 .phony: clean
 
 clean:
-	rm -f *.o server client
+	rm -f *.gch *.o server client

@@ -5,7 +5,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <fcntl.h>
-#include <errno.h>  
+#include <errno.h>
 #include "sha1.h"
 
 
@@ -54,27 +54,6 @@
 #define PTHREAD_ERROR_HELPER(ret, msg)  GENERIC_ERROR_HELPER((ret != 0), ret, msg)
 
 
-/* DICHIARAZIONI*/
-char* char2str(char *word);
-int check_buff(char* buff, char ack);
-char* senzaslashenne(char* nome);
-int send_msg(int socket, char *msg);
-size_t recv_msg(int socket, char *buff, size_t buf_len);
-int message_action(char* buff) ;
-int recv_and_parse(int socket, char* buff, size_t buff_len) ;
-int send_and_parse(int socket, char* buff) ;
-char* crypt(char* msg);
-char* char2str(char *word);
-int check_command(char* command, char* buff);
-int check_quit(char* buff);
-int check_cancel(char* buff);
-int check_shutdown(char* buff);
-int check_list(char* buff);
-int check_help(char* buff);
-int check_exit(char* buff);
-int check_buff(char* buff, char ack) ;
-/*-------------*/
-
 typedef struct user_data_s {
   int     socket;
   char*    nickname;
@@ -99,3 +78,25 @@ typedef struct{
   int socket;
   char* nickname;
 }client_chat_arg;
+
+
+/* DICHIARAZIONI*/
+char* char2str(char *word);
+int check_buff(char* buff, char ack);
+char* senzaslashenne(char* nome);
+int send_msg(int socket, char *msg);
+size_t recv_msg(int socket, char *buff, size_t buf_len);
+int message_action(char* buff) ;
+int recv_and_parse(int socket, char* buff, size_t buff_len) ;
+int send_and_parse(int socket, char* buff) ;
+char* crypt(char* msg);
+char* char2str(char *word);
+int check_command(char* command, char* buff);
+int check_quit(char* buff);
+int check_cancel(char* buff);
+int check_shutdown(char* buff);
+int check_list(char* buff);
+int check_help(char* buff);
+int check_exit(char* buff);
+int check_buff(char* buff, char ack) ;
+/*-------------*/

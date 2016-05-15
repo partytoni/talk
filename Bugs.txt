@@ -1,3 +1,2 @@
-
-3 i .h
+1 free della memoria allocata
 4 Luca faccina
