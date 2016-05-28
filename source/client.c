@@ -253,13 +253,20 @@ int main(int argc, char* argv[]) {
 				memset(buff, 0, MSG_SIZE);
 				fgets(buff, MSG_SIZE, stdin);
 
+				if (check_quit(buff)) {
+					memset(buff, 0, MSG_SIZE);
+					sprintf(buff, "#exit");
+				}
+
 				if (check_shutdown(buff)  ){
 					printf("\nNon sei abilitato ad usare il comando %s\n",buff );
 					continue;
 				}
 
 				if (strlen(buff)==1) sprintf(buff, "%s", nickname);
-				res=send_and_parse(sock, buff);
+
+				res=send_and_parse(sock, buff); //invio il messaggio
+
 				if (res!=NOT_A_COMMAND) {
 					do_message_action(res, sock, buff,nickname);
 					continue;
